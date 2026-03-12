@@ -81,9 +81,9 @@ An authenticated user can optionally see a count of their active industry jobs a
 - What happens when the ESI API is unreachable during the token exchange? The user sees a clear error message and can retry the login.
 - What happens when the user's ESI scopes change between sessions (e.g., app requests new scopes in a future version)? The user is prompted to re-authorize with the updated scope set.
 - What happens when the character data API returns incomplete data (e.g., portrait endpoint is down)? The page displays available data gracefully with a placeholder for missing elements.
-- What happens when the user has thousands of skills? The page only shows skills in relevant groups (industry, trade, research, science, market) to keep the display manageable.
+- What happens when the user has thousands of skills? The page only shows skills in relevant groups (Science, Industry, Trade, Resource Processing, Planet Management, Social) to keep the display manageable.
 - What happens when tokens are stored but the character has been biomassed or transferred? The API call fails gracefully and the user is prompted to re-authenticate.
-- What happens when the browser's local storage is cleared by the user or browser policy? The user is treated as unauthenticated and must log in again.
+- What happens when the browser's cookies are cleared by the user or browser policy? The user is treated as unauthenticated and must log in again.
 - What happens when the OAuth metadata discovery endpoint is unreachable? The login button is disabled or shows an error; the application does not attempt authentication with stale or missing endpoint URLs.
 
 ## Requirements *(mandatory)*
@@ -96,14 +96,14 @@ An authenticated user can optionally see a count of their active industry jobs a
 - **FR-003**: System MUST generate and validate a unique state parameter per authentication attempt to prevent CSRF attacks.
 - **FR-004**: System MUST exchange the authorization code and code verifier for access and refresh tokens at the EVE SSO token endpoint.
 - **FR-005**: System MUST NOT send a client secret during any part of the authentication flow (PKCE-only).
-- **FR-006**: System MUST store tokens securely in the browser using persistent protected storage, so that the user's session survives browser restarts without requiring re-login.
+- **FR-006**: System MUST store tokens securely in encrypted HTTP-only persistent cookies (ASP.NET Core Data Protection), so that the user's session survives browser restarts without requiring re-login.
 - **FR-007**: System MUST automatically refresh the access token using the refresh token when the access token expires.
-- **FR-008**: System MUST validate JWT access tokens (signature, issuer, audience, expiration) before use.
+- **FR-008**: System MUST validate JWT access tokens (signature, issuer `https://login.eveonline.com`, audience matching the registered client ID, expiration) before use.
 - **FR-009**: System MUST clear all stored tokens and authentication state when the user logs out.
 - **FR-010**: System MUST inject a Bearer token into all authenticated ESI API requests via a custom authentication provider.
 - **FR-011**: System MUST allow public ESI endpoints (markets, universe) to be called without authentication.
 - **FR-012**: System MUST display the authenticated character's name and portrait on the character summary page.
-- **FR-013**: System MUST retrieve and display skills filtered to industry, trade, research, science, and market-related skill groups, organized by category with labeled sections, showing skill name, trained level, and skill points.
+- **FR-013**: System MUST retrieve and display skills filtered to the following skill groups: Science, Industry, Trade, Resource Processing, Planet Management, and Social, organized by category with labeled sections, showing skill name, trained level, and skill points.
 - **FR-014**: System MUST retrieve and display the active skill queue summary for the authenticated character.
 - **FR-015**: System SHOULD display a count of active industry jobs and owned blueprints for the authenticated character (P3 -- firm requirement but deferrable to a follow-up if P1/P2 stories exceed estimates).
 - **FR-016**: System MUST display a navigation bar with login/logout controls and the character name when authenticated.
@@ -129,7 +129,7 @@ An authenticated user can optionally see a count of their active industry jobs a
 - **SC-002**: The character summary page loads all data (portrait, skills, skill queue) within 3 seconds of navigation for a returning user with cached data.
 - **SC-003**: 100% of authentication attempts with valid credentials and granted consent result in a successful login.
 - **SC-004**: Token refresh occurs transparently -- users are never asked to re-login due to access token expiration alone (only refresh token revocation or explicit logout).
-- **SC-005**: The character summary page correctly displays all relevant skills (industry, trade, research, science, market groups) for any character, regardless of total skill count.
+- **SC-005**: The character summary page correctly displays all relevant skills (Science, Industry, Trade, Resource Processing, Planet Management, and Social groups) for any character, regardless of total skill count.
 - **SC-006**: All authentication errors (denied consent, network failure, invalid tokens) produce a user-understandable message within 5 seconds.
 - **SC-007**: Public pages (market data, universe info) remain fully functional and performant regardless of the user's authentication state.
 - **SC-008**: No sensitive tokens or credentials are ever exposed in application logs, URLs, or browser-accessible source code.
@@ -149,9 +149,9 @@ An authenticated user can optionally see a count of their active industry jobs a
 - The application is registered as an EVE Online developer application with the appropriate callback URI and scopes configured at the EVE Developer Portal.
 - The client ID and redirect URI are configured via dotnet user-secrets and are not committed to source control.
 - The EVE SSO endpoints (authorization, token, JWKS) are discovered dynamically via the OAuth Authorization Server Metadata document at `https://login.eveonline.com/.well-known/oauth-authorization-server`. The application MUST NOT hard-code endpoint URLs.
-- Skill group categorization (which groups count as "industry", "trade", "research", "science", "market") will be determined by matching against well-known EVE Online skill group IDs. The exact group IDs will be resolved during implementation by querying the Universe endpoints.
+- Skill group categorization (Science, Industry, Trade, Resource Processing, Planet Management, Social) will be determined by matching against well-known EVE Online skill group names. The exact group IDs will be resolved during implementation by querying the Universe endpoints.
 - This feature supports a single character per session (multi-character support is out of scope).
-- The application targets modern browsers that support Web Crypto API for PKCE code verifier generation.
+- PKCE code verifier and challenge generation is performed server-side using .NET cryptographic primitives (`System.Security.Cryptography`).
 
 ## Out of Scope
 
