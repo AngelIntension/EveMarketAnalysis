@@ -582,3 +582,5 @@ FodyWeavers.xsd
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudio,csharp
 EveMarketAnalysisClient/.claude/settings.local.json
+
+Screenshots/
