@@ -4,21 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Tool for analyzing market data in Eve Online and identifying profitable strategies. Early-stage .NET 8 solution with two projects.
+**Eve Industry Analyzer** — a .NET 8 web app for EVE Online players to view character skills, skill queues, industry jobs, and blueprint counts. Authenticates via EVE Online SSO (OAuth2 PKCE) and fetches data from the ESI API.
 
-## Build & Run
+## Build, Run & Test
 
 ```bash
 # Build entire solution
 dotnet build EveMarketAnalysis.sln
 
-# Run the web app
-dotnet run --project EveMarketAnalysisClient
+# Run the web app (must use https profile)
+dotnet run --project EveMarketAnalysisClient --launch-profile https
 
-# Web app URLs: https://localhost:7272 (default) or http://localhost:5220
+# Web app URLs: https://localhost:7272 | http://localhost:5220
+
+# Run tests (68 tests across 17 test files)
+dotnet test EveMarketAnalysisClient.Tests
 ```
 
-No test projects exist yet. No linting or CI/CD is configured.
+No linting or CI/CD is configured.
 
 ## Regenerating the ESI API Client
 
@@ -32,13 +35,31 @@ kiota generate -l CSharp -d EveStableInfrastructureApiClient/Swagger.json \
 
 ## Architecture
 
-**`EveMarketAnalysisClient/`** — ASP.NET Core 8 Razor Pages web app. Currently scaffolded with no business logic. Does not yet reference the API client project.
+### Projects
 
-**`EveStableInfrastructureApiClient/`** — Kiota-generated typed HTTP client (namespace `EveStableInfrastructure`) for the entire EVE Online ESI REST API (`https://esi.evetech.net`). Entry point is `ApiClient` which exposes fluent request builders for all ESI endpoints (Markets, Universe, Industry, etc.).
+**`EveMarketAnalysisClient/`** — ASP.NET Core 8 Razor Pages web app with EVE Online dark theme.
 
-Key market endpoints:
-- `apiClient.Markets[regionId].Orders.GetAsync()` — market orders for a region
-- `apiClient.Markets[regionId].History.GetAsync()` — price history for a region/type
-- `apiClient.Markets.Prices.GetAsync()` — universe-wide average prices
+- **Pages/** — Razor Pages: `Index`, `CharacterSummary`, `Auth/Login`, `Auth/Callback`, `Auth/Logout`, `Error`, `Privacy`
+- **Services/** — Business logic layer:
+  - `CharacterService` — orchestrates parallel ESI calls, caches results (`IMemoryCache`, 5min summary / 24h mappings)
+  - `EsiCharacterClient` — wraps ESI endpoints for skills, skill queue, industry jobs, blueprints, portraits, and bulk name resolution (`POST /universe/names`)
+  - `EsiTokenService` / `EsiAuthenticationProvider` — OAuth2 token management and HTTP auth
+  - `EsiOAuthMetadataService` — fetches EVE SSO metadata
+  - `SkillFilterService` — filters skills to relevant groups and groups by category
+  - `PkceService` — PKCE code verifier/challenge generation
+- **Models/** — Immutable records: `CharacterSummary`, `CharacterSkill`, `SkillGroupSummary`, `SkillQueueEntry`, `IndustryJob`, `EsiTokenSet`, `EsiOAuthMetadata`, `PkceParameters`
+- **Configuration/** — `EsiOptions` for ESI client/secret config
+- **Middleware/** — `EsiRateLimitHandler` for ESI rate limiting
+
+**`EveStableInfrastructureApiClient/`** — Kiota-generated typed HTTP client (namespace `EveStableInfrastructure`) for the EVE Online ESI REST API (`https://esi.evetech.net`).
+
+**`EveMarketAnalysisClient.Tests/`** — xUnit tests with Moq, FluentAssertions, and AutoFixture. Covers page handlers, services, and unit tests.
+
+### Key Patterns
+
+- **Skeleton loading**: `CharacterSummary` page renders immediately with animated placeholders, then fetches data via JS calling `OnGetSummaryAsync` (named handler returning `JsonResult`).
+- **Parallel dispatch**: All independent ESI calls run concurrently via `Task.WhenAll` with `SafeAsync<T>` for graceful per-call error handling.
+- **Bulk name resolution**: `POST /universe/names` replaces individual type lookups, with results cached for 24h.
+- **Immutable data**: All models are records with `ImmutableArray` collections.
 
 Both projects target `net8.0` with nullable reference types and implicit usings enabled.
