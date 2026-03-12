@@ -84,11 +84,13 @@ An authenticated user can optionally see a count of their active industry jobs a
 - What happens when the user has thousands of skills? The page only shows skills in relevant groups (industry, trade, research, science, market) to keep the display manageable.
 - What happens when tokens are stored but the character has been biomassed or transferred? The API call fails gracefully and the user is prompted to re-authenticate.
 - What happens when the browser's local storage is cleared by the user or browser policy? The user is treated as unauthenticated and must log in again.
+- What happens when the OAuth metadata discovery endpoint is unreachable? The login button is disabled or shows an error; the application does not attempt authentication with stale or missing endpoint URLs.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
+- **FR-000**: System MUST discover OAuth endpoint URLs (authorization, token, JWKS) dynamically from the EVE SSO metadata document at `https://login.eveonline.com/.well-known/oauth-authorization-server` rather than hard-coding them.
 - **FR-001**: System MUST redirect users to the EVE SSO authorization endpoint using the OAuth2 Authorization Code flow with PKCE (S256 code challenge method).
 - **FR-002**: System MUST generate a cryptographically random code verifier and derive the code challenge for each authentication attempt.
 - **FR-003**: System MUST generate and validate a unique state parameter per authentication attempt to prevent CSRF attacks.
@@ -140,12 +142,13 @@ An authenticated user can optionally see a count of their active industry jobs a
 - Q: How should skills be organized on the character summary page? → A: Grouped by skill category (Science, Industry, Trade, etc.) with each group as a labeled section.
 - Q: How long should character data be cached? → A: 5 minutes.
 - Q: Is the industry jobs/blueprints count (FR-015, User Story 4) a hard requirement or droppable? → A: Firm P3 -- included in scope but deferrable to follow-up if P1/P2 exceed estimates.
+- Q: How should the application discover ESI OAuth endpoint URLs? → A: Dynamically from `https://login.eveonline.com/.well-known/oauth-authorization-server` (OAuth Authorization Server Metadata, not OpenID Connect discovery). Endpoints MUST NOT be hard-coded.
 
 ## Assumptions
 
 - The application is registered as an EVE Online developer application with the appropriate callback URI and scopes configured at the EVE Developer Portal.
 - The client ID and redirect URI are configured via dotnet user-secrets and are not committed to source control.
-- The EVE SSO endpoints (authorization, token, JWKS) follow the standard OpenID Connect discovery protocol and are available at `https://login.eveonline.com`.
+- The EVE SSO endpoints (authorization, token, JWKS) are discovered dynamically via the OAuth Authorization Server Metadata document at `https://login.eveonline.com/.well-known/oauth-authorization-server`. The application MUST NOT hard-code endpoint URLs.
 - Skill group categorization (which groups count as "industry", "trade", "research", "science", "market") will be determined by matching against well-known EVE Online skill group IDs. The exact group IDs will be resolved during implementation by querying the Universe endpoints.
 - This feature supports a single character per session (multi-character support is out of scope).
 - The application targets modern browsers that support Web Crypto API for PKCE code verifier generation.
