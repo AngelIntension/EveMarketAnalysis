@@ -8,6 +8,6 @@ public record CharacterSummary(
     string PortraitUrl,
     ImmutableArray<SkillGroupSummary> SkillGroups,
     ImmutableArray<SkillQueueEntry> SkillQueue,
-    int? IndustryJobCount,
+    ImmutableArray<IndustryJob> IndustryJobs,
     int? BlueprintCount,
     DateTimeOffset FetchedAt);

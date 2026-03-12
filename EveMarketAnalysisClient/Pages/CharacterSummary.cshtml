@@ -76,9 +76,39 @@ else
         </table>
     </div>
 
-    <div id="industry-section" class="d-none">
-        <h4>Industry</h4>
-        <div id="industry-cards" class="row"></div>
+    <h4>Industry Jobs</h4>
+    <div id="industry-section">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Activity</th>
+                    <th>Blueprint</th>
+                    <th>Location</th>
+                    <th>Runs</th>
+                    <th>Progress</th>
+                    <th>Completion</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < 3; i++)
+                {
+                    <tr>
+                        <td><span class="skeleton skeleton-text" style="width:100px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:160px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:140px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:30px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:100px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:120px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:60px"></span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div id="blueprints-section" class="d-none">
+        <div id="blueprint-card" class="row"></div>
     </div>
 }
 
@@ -178,25 +208,46 @@ else
                 }
                 document.getElementById('queue-section').innerHTML = queueHtml;
 
-                // Industry
-                var hasIndustry = s.industryJobCount != null || s.blueprintCount != null;
-                if (hasIndustry) {
-                    var indSection = document.getElementById('industry-section');
-                    indSection.classList.remove('d-none');
-                    var cardsHtml = '';
-                    if (s.industryJobCount != null) {
-                        var jobText = s.industryJobCount === 0 ? 'None active' : String(s.industryJobCount);
-                        cardsHtml += '<div class="col-auto"><div class="card"><div class="card-body text-center">' +
-                            '<h5 class="card-title">' + esc(jobText) + '</h5>' +
-                            '<p class="card-text">Industry Jobs</p></div></div></div>';
+                // Industry Jobs
+                var jobsHtml = '';
+                if (!s.industryJobs || s.industryJobs.length === 0) {
+                    jobsHtml = '<p class="text-muted">No active industry jobs.</p>';
+                } else {
+                    jobsHtml = '<table class="table"><thead><tr>' +
+                        '<th>Activity</th><th>Blueprint</th><th>Location</th>' +
+                        '<th>Runs</th><th>Progress</th><th>Completion</th><th>Status</th>' +
+                        '</tr></thead><tbody>';
+                    for (var m = 0; m < s.industryJobs.length; m++) {
+                        var job = s.industryJobs[m];
+                        var endDate = job.endDate ? new Date(job.endDate).toLocaleString() : '-';
+                        var statusClass = job.status === 'Active' ? 'eve-status-active'
+                            : job.status === 'Ready' ? 'eve-status-ready'
+                            : job.status === 'Delivered' ? 'eve-status-delivered'
+                            : '';
+                        var progressBar = '<div class="progress eve-progress">' +
+                            '<div class="progress-bar eve-progress-bar" style="width:' + job.progressPercent + '%"></div></div>' +
+                            '<small class="text-muted">' + job.progressPercent + '%</small>';
+                        jobsHtml += '<tr><td>' + esc(job.activity) + '</td>' +
+                            '<td>' + esc(job.blueprintName) + '</td>' +
+                            '<td>' + esc(job.location) + '</td>' +
+                            '<td>' + job.runs + '</td>' +
+                            '<td>' + progressBar + '</td>' +
+                            '<td>' + esc(endDate) + '</td>' +
+                            '<td><span class="' + statusClass + '">' + esc(job.status) + '</span></td></tr>';
                     }
-                    if (s.blueprintCount != null) {
-                        var bpText = s.blueprintCount === 0 ? 'None owned' : String(s.blueprintCount);
-                        cardsHtml += '<div class="col-auto"><div class="card"><div class="card-body text-center">' +
-                            '<h5 class="card-title">' + esc(bpText) + '</h5>' +
-                            '<p class="card-text">Blueprints</p></div></div></div>';
-                    }
-                    document.getElementById('industry-cards').innerHTML = cardsHtml;
+                    jobsHtml += '</tbody></table>';
+                }
+                document.getElementById('industry-section').innerHTML = jobsHtml;
+
+                // Blueprints
+                if (s.blueprintCount != null) {
+                    var bpSection = document.getElementById('blueprints-section');
+                    bpSection.classList.remove('d-none');
+                    var bpText = s.blueprintCount === 0 ? 'None owned' : String(s.blueprintCount);
+                    document.getElementById('blueprint-card').innerHTML =
+                        '<div class="col-auto"><div class="card"><div class="card-body text-center">' +
+                        '<h5 class="card-title">' + esc(bpText) + '</h5>' +
+                        '<p class="card-text">Blueprints</p></div></div></div>';
                 }
             }
         })();

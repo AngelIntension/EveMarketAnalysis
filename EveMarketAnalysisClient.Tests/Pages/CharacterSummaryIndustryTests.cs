@@ -39,13 +39,17 @@ public class CharacterSummaryIndustryTests
     }
 
     [Fact]
-    public async Task OnGetSummaryAsync_ReturnsIndustryJobCountWhenPresent()
+    public async Task OnGetSummaryAsync_ReturnsIndustryJobs()
     {
+        var jobs = ImmutableArray.Create(
+            new IndustryJob(1, "Manufacturing", "Rifter Blueprint", "Active", "Jita",
+                10, DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddHours(1), 50.0));
+
         var summary = new CharacterSummary(12345, "Test Pilot",
             "https://images.evetech.net/characters/12345/portrait?size=128",
             ImmutableArray<SkillGroupSummary>.Empty,
             ImmutableArray<SkillQueueEntry>.Empty,
-            IndustryJobCount: 5, BlueprintCount: 12,
+            IndustryJobs: jobs, BlueprintCount: 12,
             FetchedAt: DateTimeOffset.UtcNow);
 
         var page = CreatePage(summary);
@@ -53,18 +57,19 @@ public class CharacterSummaryIndustryTests
 
         var jsonResult = result.Should().BeOfType<JsonResult>().Subject;
         var data = jsonResult.Value.Should().BeOfType<CharacterSummary>().Subject;
-        data.IndustryJobCount.Should().Be(5);
+        data.IndustryJobs.Should().HaveCount(1);
+        data.IndustryJobs[0].Activity.Should().Be("Manufacturing");
         data.BlueprintCount.Should().Be(12);
     }
 
     [Fact]
-    public async Task OnGetSummaryAsync_ReturnsZeroCounts()
+    public async Task OnGetSummaryAsync_ReturnsEmptyJobs()
     {
         var summary = new CharacterSummary(12345, "Test Pilot",
             "https://images.evetech.net/characters/12345/portrait?size=128",
             ImmutableArray<SkillGroupSummary>.Empty,
             ImmutableArray<SkillQueueEntry>.Empty,
-            IndustryJobCount: 0, BlueprintCount: 0,
+            IndustryJobs: ImmutableArray<IndustryJob>.Empty, BlueprintCount: 0,
             FetchedAt: DateTimeOffset.UtcNow);
 
         var page = CreatePage(summary);
@@ -72,18 +77,18 @@ public class CharacterSummaryIndustryTests
 
         var jsonResult = result.Should().BeOfType<JsonResult>().Subject;
         var data = jsonResult.Value.Should().BeOfType<CharacterSummary>().Subject;
-        data.IndustryJobCount.Should().Be(0);
+        data.IndustryJobs.Should().BeEmpty();
         data.BlueprintCount.Should().Be(0);
     }
 
     [Fact]
-    public async Task OnGetSummaryAsync_ReturnsNullCounts()
+    public async Task OnGetSummaryAsync_ReturnsNullBlueprintCount()
     {
         var summary = new CharacterSummary(12345, "Test Pilot",
             "https://images.evetech.net/characters/12345/portrait?size=128",
             ImmutableArray<SkillGroupSummary>.Empty,
             ImmutableArray<SkillQueueEntry>.Empty,
-            IndustryJobCount: null, BlueprintCount: null,
+            IndustryJobs: ImmutableArray<IndustryJob>.Empty, BlueprintCount: null,
             FetchedAt: DateTimeOffset.UtcNow);
 
         var page = CreatePage(summary);
@@ -91,7 +96,6 @@ public class CharacterSummaryIndustryTests
 
         var jsonResult = result.Should().BeOfType<JsonResult>().Subject;
         var data = jsonResult.Value.Should().BeOfType<CharacterSummary>().Subject;
-        data.IndustryJobCount.Should().BeNull();
         data.BlueprintCount.Should().BeNull();
     }
 }

@@ -10,6 +10,10 @@ namespace EveMarketAnalysisClient.Tests.Services;
 
 public class CharacterServiceIndustryTests
 {
+    private static readonly ImmutableArray<IndustryJob> TestJobs = ImmutableArray.Create(
+        new IndustryJob(1, "Manufacturing", "Rifter Blueprint", "Active", "Jita",
+            10, DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddHours(1), 50.0));
+
     private static Mock<IEsiCharacterClient> CreateBasicEsiClient()
     {
         var esiClient = new Mock<IEsiCharacterClient>();
@@ -41,11 +45,11 @@ public class CharacterServiceIndustryTests
     }
 
     [Fact]
-    public async Task GetCharacterSummaryAsync_IncludesIndustryJobCount()
+    public async Task GetCharacterSummaryAsync_IncludesIndustryJobs()
     {
         var esiClient = CreateBasicEsiClient();
-        esiClient.Setup(c => c.GetIndustryJobCountAsync(12345, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(3);
+        esiClient.Setup(c => c.GetIndustryJobsAsync(12345, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(TestJobs);
         esiClient.Setup(c => c.GetBlueprintCountAsync(12345, It.IsAny<CancellationToken>()))
             .ReturnsAsync(15);
 
@@ -53,7 +57,8 @@ public class CharacterServiceIndustryTests
 
         var result = await service.GetCharacterSummaryAsync(12345, "Test Pilot");
 
-        result!.IndustryJobCount.Should().Be(3);
+        result!.IndustryJobs.Should().HaveCount(1);
+        result.IndustryJobs[0].Activity.Should().Be("Manufacturing");
         result.BlueprintCount.Should().Be(15);
     }
 
@@ -61,8 +66,8 @@ public class CharacterServiceIndustryTests
     public async Task GetCharacterSummaryAsync_HandlesEmptyIndustryResults()
     {
         var esiClient = CreateBasicEsiClient();
-        esiClient.Setup(c => c.GetIndustryJobCountAsync(12345, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(0);
+        esiClient.Setup(c => c.GetIndustryJobsAsync(12345, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ImmutableArray<IndustryJob>.Empty);
         esiClient.Setup(c => c.GetBlueprintCountAsync(12345, It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
 
@@ -70,7 +75,7 @@ public class CharacterServiceIndustryTests
 
         var result = await service.GetCharacterSummaryAsync(12345, "Test Pilot");
 
-        result!.IndustryJobCount.Should().Be(0);
+        result!.IndustryJobs.Should().BeEmpty();
         result.BlueprintCount.Should().Be(0);
     }
 
@@ -78,7 +83,7 @@ public class CharacterServiceIndustryTests
     public async Task GetCharacterSummaryAsync_HandlesIndustryApiErrorsGracefully()
     {
         var esiClient = CreateBasicEsiClient();
-        esiClient.Setup(c => c.GetIndustryJobCountAsync(12345, It.IsAny<CancellationToken>()))
+        esiClient.Setup(c => c.GetIndustryJobsAsync(12345, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("ESI error"));
         esiClient.Setup(c => c.GetBlueprintCountAsync(12345, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("ESI error"));
@@ -87,7 +92,7 @@ public class CharacterServiceIndustryTests
 
         var result = await service.GetCharacterSummaryAsync(12345, "Test Pilot");
 
-        result!.IndustryJobCount.Should().BeNull();
+        result!.IndustryJobs.Should().BeEmpty();
         result.BlueprintCount.Should().BeNull();
     }
 }

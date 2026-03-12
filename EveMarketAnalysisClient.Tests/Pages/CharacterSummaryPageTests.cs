@@ -24,7 +24,7 @@ public class CharacterSummaryPageTests
         SkillQueue: ImmutableArray.Create(
             new SkillQueueEntry(3388, "Science", 5,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddHours(12), 0)),
-        IndustryJobCount: null,
+        IndustryJobs: ImmutableArray<IndustryJob>.Empty,
         BlueprintCount: null,
         FetchedAt: DateTimeOffset.UtcNow);
 

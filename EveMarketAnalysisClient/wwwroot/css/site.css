@@ -186,6 +186,36 @@ a:hover {
   box-shadow: 0 0 0 0.1rem var(--eve-bg), 0 0 0 0.25rem var(--eve-accent);
 }
 
+/* --- Industry progress bar --- */
+.eve-progress {
+  height: 6px;
+  background-color: var(--eve-border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.eve-progress-bar {
+  background-color: var(--eve-accent);
+  height: 100%;
+  transition: width 0.3s;
+}
+
+/* --- Industry job status --- */
+.eve-status-active {
+  color: var(--eve-accent);
+  font-weight: 600;
+}
+
+.eve-status-ready {
+  color: var(--eve-success);
+  font-weight: 600;
+}
+
+.eve-status-delivered {
+  color: var(--eve-text-muted);
+}
+
 /* --- Skeleton loading placeholders --- */
 .skeleton {
   display: inline-block;

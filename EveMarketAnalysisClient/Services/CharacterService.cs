@@ -54,8 +54,9 @@ public class CharacterService : ICharacterService
         var queueTask = SafeAsync(
             () => _esiClient.GetSkillQueueAsync(characterId, cancellationToken),
             ImmutableArray<SkillQueueEntry>.Empty);
-        var industryTask = SafeAsync<int?>(
-            async () => await _esiClient.GetIndustryJobCountAsync(characterId, cancellationToken), null);
+        var industryTask = SafeAsync(
+            () => _esiClient.GetIndustryJobsAsync(characterId, cancellationToken),
+            ImmutableArray<IndustryJob>.Empty);
         var blueprintTask = SafeAsync<int?>(
             async () => await _esiClient.GetBlueprintCountAsync(characterId, cancellationToken), null);
 
@@ -69,7 +70,7 @@ public class CharacterService : ICharacterService
         var filteredSkills = _skillFilter.FilterToRelevantGroups(skills, groupMapping, RelevantGroupNames);
         var skillGroups = _skillFilter.GroupByCategory(filteredSkills, groupMapping);
 
-        int? industryJobCount = industryTask.Result;
+        var industryJobs = industryTask.Result;
         int? blueprintCount = blueprintTask.Result;
 
         var summary = new CharacterSummary(
@@ -78,7 +79,7 @@ public class CharacterService : ICharacterService
             PortraitUrl: portraitUrl,
             SkillGroups: skillGroups,
             SkillQueue: skillQueue,
-            IndustryJobCount: industryJobCount,
+            IndustryJobs: industryJobs,
             BlueprintCount: blueprintCount,
             FetchedAt: DateTimeOffset.UtcNow);
 

@@ -32,7 +32,7 @@ public class EsiCharacterClient : IEsiCharacterClient
             return ImmutableArray<CharacterSkill>.Empty;
 
         var skillIds = response.Skills.Select(s => (int)(s.SkillId ?? 0)).ToList();
-        var skillNames = await ResolveSkillNamesAsync(skillIds, cancellationToken);
+        var skillNames = await ResolveNamesAsync(skillIds, cancellationToken);
 
         return response.Skills
             .Select(s =>
@@ -40,7 +40,7 @@ public class EsiCharacterClient : IEsiCharacterClient
                 var skillId = (int)(s.SkillId ?? 0);
                 var skillName = skillNames.TryGetValue(skillId, out var name)
                     ? name
-                    : $"Skill {skillId}";
+                    : $"Unknown ({skillId})";
                 return new CharacterSkill(
                     SkillId: skillId,
                     SkillName: skillName,
@@ -58,7 +58,7 @@ public class EsiCharacterClient : IEsiCharacterClient
             return ImmutableArray<SkillQueueEntry>.Empty;
 
         var skillIds = response.Select(q => (int)(q.SkillId ?? 0)).ToList();
-        var skillNames = await ResolveSkillNamesAsync(skillIds, cancellationToken);
+        var skillNames = await ResolveNamesAsync(skillIds, cancellationToken);
 
         return response
             .Select(q =>
@@ -66,7 +66,7 @@ public class EsiCharacterClient : IEsiCharacterClient
                 var skillId = (int)(q.SkillId ?? 0);
                 var skillName = skillNames.TryGetValue(skillId, out var name)
                     ? name
-                    : $"Skill {skillId}";
+                    : $"Unknown ({skillId})";
                 return new SkillQueueEntry(
                     SkillId: skillId,
                     SkillName: skillName,
@@ -117,7 +117,7 @@ public class EsiCharacterClient : IEsiCharacterClient
         return mapping;
     }
 
-    private async Task<Dictionary<int, string>> ResolveSkillNamesAsync(
+    private async Task<Dictionary<int, string>> ResolveNamesAsync(
         IEnumerable<int> skillIds,
         CancellationToken cancellationToken)
     {
@@ -153,17 +153,91 @@ public class EsiCharacterClient : IEsiCharacterClient
             // Fill any IDs that weren't resolved
             foreach (var id in idsToFetch)
             {
-                nameCache.TryAdd(id, $"Skill {id}");
+                nameCache.TryAdd(id, $"Unknown ({id})");
             }
         }
 
         return nameCache;
     }
 
-    public async Task<int> GetIndustryJobCountAsync(int characterId, CancellationToken cancellationToken = default)
+    private static readonly Dictionary<int, string> ActivityNames = new()
+    {
+        [1] = "Manufacturing",
+        [3] = "Researching TE",
+        [4] = "Researching ME",
+        [5] = "Copying",
+        [8] = "Invention",
+        [9] = "Reactions"
+    };
+
+    public async Task<ImmutableArray<IndustryJob>> GetIndustryJobsAsync(
+        int characterId, CancellationToken cancellationToken = default)
     {
         var jobs = await _apiClient.Characters[characterId].Industry.Jobs.GetAsync(cancellationToken: cancellationToken);
-        return jobs?.Count ?? 0;
+        if (jobs == null || jobs.Count == 0)
+            return ImmutableArray<IndustryJob>.Empty;
+
+        // Collect all type IDs and station/structure IDs that need name resolution
+        var typeIds = jobs
+            .Select(j => (int)(j.BlueprintTypeId ?? 0))
+            .Where(id => id != 0)
+            .Distinct()
+            .ToList();
+
+        var locationIds = jobs
+            .Select(j => (int)(j.StationId ?? j.FacilityId ?? 0))
+            .Where(id => id != 0)
+            .Distinct()
+            .ToList();
+
+        var allIds = typeIds.Concat(locationIds).Distinct().ToList();
+        var names = await ResolveNamesAsync(allIds, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+
+        return jobs
+            .Select(j =>
+            {
+                var activityId = (int)(j.ActivityId ?? 0);
+                var activity = ActivityNames.TryGetValue(activityId, out var actName)
+                    ? actName
+                    : $"Activity {activityId}";
+
+                var blueprintTypeId = (int)(j.BlueprintTypeId ?? 0);
+                var blueprintName = names.TryGetValue(blueprintTypeId, out var bpName)
+                    ? bpName
+                    : $"Unknown ({blueprintTypeId})";
+
+                var locationId = (int)(j.StationId ?? j.FacilityId ?? 0);
+                var location = names.TryGetValue(locationId, out var locName)
+                    ? locName
+                    : $"Unknown ({locationId})";
+
+                var status = j.Status?.ToString() ?? "Unknown";
+
+                var progress = 0.0;
+                if (j.StartDate.HasValue && j.EndDate.HasValue && j.EndDate > j.StartDate)
+                {
+                    var total = (j.EndDate.Value - j.StartDate.Value).TotalSeconds;
+                    var elapsed = (now - j.StartDate.Value).TotalSeconds;
+                    progress = status == "Active"
+                        ? Math.Clamp(elapsed / total * 100, 0, 100)
+                        : status is "Ready" or "Delivered" ? 100 : 0;
+                }
+
+                return new IndustryJob(
+                    JobId: j.JobId ?? 0,
+                    Activity: activity,
+                    BlueprintName: blueprintName,
+                    Status: status,
+                    Location: location,
+                    Runs: (int)(j.Runs ?? 0),
+                    StartDate: j.StartDate,
+                    EndDate: j.EndDate,
+                    ProgressPercent: Math.Round(progress, 1));
+            })
+            .OrderBy(j => j.EndDate)
+            .ToImmutableArray();
     }
 
     public async Task<int> GetBlueprintCountAsync(int characterId, CancellationToken cancellationToken = default)
