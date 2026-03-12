@@ -584,3 +584,9 @@ FodyWeavers.xsd
 EveMarketAnalysisClient/.claude/settings.local.json
 
 Screenshots/
+
+.claude/settings.local.json
+
+.playwright-cli/
+
+.playwright/
