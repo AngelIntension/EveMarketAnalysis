@@ -2,6 +2,7 @@ using System.Security.Claims;
 using EveMarketAnalysisClient.Models;
 using EveMarketAnalysisClient.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace EveMarketAnalysisClient.Pages;
@@ -11,7 +12,8 @@ public class CharacterSummaryModel : PageModel
 {
     private readonly ICharacterService _characterService;
 
-    public CharacterSummary? Summary { get; set; }
+    public string CharacterName { get; set; } = "Unknown";
+    public int? CharacterId { get; set; }
     public string? ErrorMessage { get; set; }
 
     public CharacterSummaryModel(ICharacterService characterService)
@@ -19,25 +21,37 @@ public class CharacterSummaryModel : PageModel
         _characterService = characterService;
     }
 
-    public async Task OnGetAsync(CancellationToken cancellationToken = default)
+    public void OnGet()
     {
         var characterIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var characterName = User.Identity?.Name;
+        CharacterName = User.Identity?.Name ?? "Unknown";
 
-        if (string.IsNullOrEmpty(characterIdClaim) || !int.TryParse(characterIdClaim, out var characterId))
+        if (string.IsNullOrEmpty(characterIdClaim) || !int.TryParse(characterIdClaim, out var id))
         {
             ErrorMessage = "Could not determine character identity. Please log in again.";
             return;
         }
 
+        CharacterId = id;
+    }
+
+    public async Task<IActionResult> OnGetSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        var characterIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var characterName = User.Identity?.Name;
+
+        if (string.IsNullOrEmpty(characterIdClaim) || !int.TryParse(characterIdClaim, out var characterId))
+            return new JsonResult(new { error = "Could not determine character identity." }) { StatusCode = 400 };
+
         try
         {
-            Summary = await _characterService.GetCharacterSummaryAsync(
+            var summary = await _characterService.GetCharacterSummaryAsync(
                 characterId, characterName ?? "Unknown", cancellationToken);
+            return new JsonResult(summary);
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Failed to load character data: {ex.Message}";
+            return new JsonResult(new { error = $"Failed to load character data: {ex.Message}" }) { StatusCode = 500 };
         }
     }
 }

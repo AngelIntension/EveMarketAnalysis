@@ -5,6 +5,7 @@ using EveMarketAnalysisClient.Pages;
 using EveMarketAnalysisClient.Services.Interfaces;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Moq;
 
@@ -38,7 +39,7 @@ public class CharacterSummaryIndustryTests
     }
 
     [Fact]
-    public async Task OnGetAsync_RendersIndustryJobCountWhenPresent()
+    public async Task OnGetSummaryAsync_ReturnsIndustryJobCountWhenPresent()
     {
         var summary = new CharacterSummary(12345, "Test Pilot",
             "https://images.evetech.net/characters/12345/portrait?size=128",
@@ -48,14 +49,16 @@ public class CharacterSummaryIndustryTests
             FetchedAt: DateTimeOffset.UtcNow);
 
         var page = CreatePage(summary);
-        await page.OnGetAsync();
+        var result = await page.OnGetSummaryAsync();
 
-        page.Summary!.IndustryJobCount.Should().Be(5);
-        page.Summary.BlueprintCount.Should().Be(12);
+        var jsonResult = result.Should().BeOfType<JsonResult>().Subject;
+        var data = jsonResult.Value.Should().BeOfType<CharacterSummary>().Subject;
+        data.IndustryJobCount.Should().Be(5);
+        data.BlueprintCount.Should().Be(12);
     }
 
     [Fact]
-    public async Task OnGetAsync_RendersZeroCounts()
+    public async Task OnGetSummaryAsync_ReturnsZeroCounts()
     {
         var summary = new CharacterSummary(12345, "Test Pilot",
             "https://images.evetech.net/characters/12345/portrait?size=128",
@@ -65,14 +68,16 @@ public class CharacterSummaryIndustryTests
             FetchedAt: DateTimeOffset.UtcNow);
 
         var page = CreatePage(summary);
-        await page.OnGetAsync();
+        var result = await page.OnGetSummaryAsync();
 
-        page.Summary!.IndustryJobCount.Should().Be(0);
-        page.Summary.BlueprintCount.Should().Be(0);
+        var jsonResult = result.Should().BeOfType<JsonResult>().Subject;
+        var data = jsonResult.Value.Should().BeOfType<CharacterSummary>().Subject;
+        data.IndustryJobCount.Should().Be(0);
+        data.BlueprintCount.Should().Be(0);
     }
 
     [Fact]
-    public async Task OnGetAsync_HandlesNullCounts()
+    public async Task OnGetSummaryAsync_ReturnsNullCounts()
     {
         var summary = new CharacterSummary(12345, "Test Pilot",
             "https://images.evetech.net/characters/12345/portrait?size=128",
@@ -82,9 +87,11 @@ public class CharacterSummaryIndustryTests
             FetchedAt: DateTimeOffset.UtcNow);
 
         var page = CreatePage(summary);
-        await page.OnGetAsync();
+        var result = await page.OnGetSummaryAsync();
 
-        page.Summary!.IndustryJobCount.Should().BeNull();
-        page.Summary.BlueprintCount.Should().BeNull();
+        var jsonResult = result.Should().BeOfType<JsonResult>().Subject;
+        var data = jsonResult.Value.Should().BeOfType<CharacterSummary>().Subject;
+        data.IndustryJobCount.Should().BeNull();
+        data.BlueprintCount.Should().BeNull();
     }
 }

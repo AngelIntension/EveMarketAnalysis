@@ -59,7 +59,30 @@ public class CharacterSummaryPageTests
     }
 
     [Fact]
-    public async Task OnGetAsync_PopulatesCharacterSummary()
+    public void OnGet_SetsCharacterIdAndName()
+    {
+        var page = CreatePage();
+
+        page.OnGet();
+
+        page.CharacterId.Should().Be(12345);
+        page.CharacterName.Should().Be("Test Pilot");
+        page.ErrorMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public void OnGet_SetsErrorWhenNotAuthenticated()
+    {
+        var page = CreatePage(authenticated: false);
+
+        page.OnGet();
+
+        page.ErrorMessage.Should().NotBeNullOrEmpty();
+        page.CharacterId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task OnGetSummaryAsync_ReturnsCharacterSummary()
     {
         var characterService = new Mock<ICharacterService>();
         characterService.Setup(c => c.GetCharacterSummaryAsync(
@@ -68,15 +91,16 @@ public class CharacterSummaryPageTests
 
         var page = CreatePage(characterService);
 
-        await page.OnGetAsync();
+        var result = await page.OnGetSummaryAsync();
 
-        page.Summary.Should().NotBeNull();
-        page.Summary!.Name.Should().Be("Test Pilot");
-        page.Summary.CharacterId.Should().Be(12345);
+        var jsonResult = result.Should().BeOfType<JsonResult>().Subject;
+        var summary = jsonResult.Value.Should().BeOfType<CharacterSummary>().Subject;
+        summary.Name.Should().Be("Test Pilot");
+        summary.CharacterId.Should().Be(12345);
     }
 
     [Fact]
-    public async Task OnGetAsync_RendersSkillGroups()
+    public async Task OnGetSummaryAsync_ReturnsSkillGroups()
     {
         var characterService = new Mock<ICharacterService>();
         characterService.Setup(c => c.GetCharacterSummaryAsync(
@@ -85,14 +109,16 @@ public class CharacterSummaryPageTests
 
         var page = CreatePage(characterService);
 
-        await page.OnGetAsync();
+        var result = await page.OnGetSummaryAsync();
 
-        page.Summary!.SkillGroups.Should().NotBeEmpty();
-        page.Summary.SkillGroups.Should().Contain(g => g.GroupName == "Industry");
+        var jsonResult = result.Should().BeOfType<JsonResult>().Subject;
+        var summary = jsonResult.Value.Should().BeOfType<CharacterSummary>().Subject;
+        summary.SkillGroups.Should().NotBeEmpty();
+        summary.SkillGroups.Should().Contain(g => g.GroupName == "Industry");
     }
 
     [Fact]
-    public async Task OnGetAsync_RendersSkillQueue()
+    public async Task OnGetSummaryAsync_ReturnsSkillQueue()
     {
         var characterService = new Mock<ICharacterService>();
         characterService.Setup(c => c.GetCharacterSummaryAsync(
@@ -101,15 +127,17 @@ public class CharacterSummaryPageTests
 
         var page = CreatePage(characterService);
 
-        await page.OnGetAsync();
+        var result = await page.OnGetSummaryAsync();
 
-        page.Summary!.SkillQueue.Should().NotBeEmpty();
+        var jsonResult = result.Should().BeOfType<JsonResult>().Subject;
+        var summary = jsonResult.Value.Should().BeOfType<CharacterSummary>().Subject;
+        summary.SkillQueue.Should().NotBeEmpty();
     }
 
     [Fact]
-    public async Task OnGetAsync_HandlesEmptySkillQueue()
+    public async Task OnGetSummaryAsync_HandlesEmptySkillQueue()
     {
-        var summary = CreateTestSummary() with
+        var testSummary = CreateTestSummary() with
         {
             SkillQueue = ImmutableArray<SkillQueueEntry>.Empty
         };
@@ -117,12 +145,14 @@ public class CharacterSummaryPageTests
         var characterService = new Mock<ICharacterService>();
         characterService.Setup(c => c.GetCharacterSummaryAsync(
                 12345, "Test Pilot", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(summary);
+            .ReturnsAsync(testSummary);
 
         var page = CreatePage(characterService);
 
-        await page.OnGetAsync();
+        var result = await page.OnGetSummaryAsync();
 
-        page.Summary!.SkillQueue.Should().BeEmpty();
+        var jsonResult = result.Should().BeOfType<JsonResult>().Subject;
+        var summary = jsonResult.Value.Should().BeOfType<CharacterSummary>().Subject;
+        summary.SkillQueue.Should().BeEmpty();
     }
 }
