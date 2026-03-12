@@ -7,4 +7,16 @@
     <UserSecretsId>9d9e0aab-9f2f-4804-9010-986ada4f990a</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.0.1" />
+    <PackageReference Include="System.Collections.Immutable" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Kiota.Abstractions" Version="1.21.3" />
+    <PackageReference Include="Microsoft.Kiota.Http.HttpClientLibrary" Version="1.21.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EveStableInfrastructureApiClient\EveStableInfrastructureApiClient.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -1,5 +1,27 @@
+/* === EVE Online Dark Theme === */
+
+:root {
+  --eve-bg: #0b0e17;
+  --eve-bg-raised: #121829;
+  --eve-bg-card: #161d30;
+  --eve-border: #252d45;
+  --eve-text: #c5c8d4;
+  --eve-text-muted: #7a8199;
+  --eve-heading: #e0e3eb;
+  --eve-accent: #30b2e6;
+  --eve-accent-hover: #5ec8f0;
+  --eve-gold: #e6a817;
+  --eve-gold-hover: #f0c040;
+  --eve-link: #30b2e6;
+  --eve-link-hover: #5ec8f0;
+  --eve-danger: #e04040;
+  --eve-success: #3dcc60;
+}
+
 html {
   font-size: 14px;
+  position: relative;
+  min-height: 100%;
 }
 
 @media (min-width: 768px) {
@@ -8,15 +30,212 @@ html {
   }
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
-
-html {
-  position: relative;
-  min-height: 100%;
-}
-
 body {
   margin-bottom: 60px;
+  background-color: var(--eve-bg);
+  color: var(--eve-text);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--eve-heading);
+}
+
+a {
+  color: var(--eve-link);
+}
+
+a:hover {
+  color: var(--eve-link-hover);
+}
+
+/* --- Navbar --- */
+.eve-navbar {
+  background-color: var(--eve-bg-raised);
+  border-bottom-color: var(--eve-border) !important;
+}
+
+.eve-brand {
+  color: var(--eve-accent) !important;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.eve-brand:hover {
+  color: var(--eve-accent-hover) !important;
+}
+
+.eve-navbar .nav-link {
+  color: var(--eve-text) !important;
+  transition: color 0.15s;
+}
+
+.eve-navbar .nav-link:hover {
+  color: var(--eve-accent) !important;
+}
+
+.eve-character-name {
+  color: var(--eve-gold) !important;
+  font-weight: 600;
+}
+
+.eve-login-link {
+  color: var(--eve-gold) !important;
+  font-weight: 600;
+}
+
+.eve-login-link:hover {
+  color: var(--eve-gold-hover) !important;
+}
+
+.navbar-toggler {
+  border-color: var(--eve-border);
+}
+
+.navbar-toggler-icon {
+  filter: invert(0.8);
+}
+
+/* --- Cards --- */
+.card {
+  background-color: var(--eve-bg-card);
+  border-color: var(--eve-border);
+  color: var(--eve-text);
+}
+
+.card-header {
+  background-color: var(--eve-bg-raised);
+  border-bottom-color: var(--eve-border);
+  color: var(--eve-heading);
+}
+
+.card-title {
+  color: var(--eve-heading);
+}
+
+.card-text {
+  color: var(--eve-text-muted);
+}
+
+/* --- Lists --- */
+.list-group-item {
+  background-color: var(--eve-bg-card);
+  border-color: var(--eve-border);
+  color: var(--eve-text);
+}
+
+/* --- Tables --- */
+.table {
+  color: var(--eve-text);
+  border-color: var(--eve-border);
+}
+
+.table > thead {
+  color: var(--eve-heading);
+  border-bottom-color: var(--eve-border);
+}
+
+.table > :not(caption) > * > * {
+  background-color: transparent;
+  border-bottom-color: var(--eve-border);
+}
+
+.table > thead > tr > th {
+  color: var(--eve-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.8em;
+  letter-spacing: 0.5px;
+}
+
+/* --- Badges --- */
+.badge.bg-secondary {
+  background-color: var(--eve-border) !important;
+  color: var(--eve-accent);
+}
+
+/* --- Alerts --- */
+.alert-danger {
+  background-color: rgba(224, 64, 64, 0.15);
+  border-color: var(--eve-danger);
+  color: #f08080;
+}
+
+/* --- Footer --- */
+.footer {
+  background-color: var(--eve-bg-raised);
+  border-top-color: var(--eve-border) !important;
+  color: var(--eve-text-muted);
+  padding: 1rem 0;
+}
+
+.footer a {
+  color: var(--eve-text-muted);
+}
+
+.footer a:hover {
+  color: var(--eve-accent);
+}
+
+/* --- Text utilities --- */
+.text-muted {
+  color: var(--eve-text-muted) !important;
+}
+
+/* --- Focus states --- */
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem var(--eve-bg), 0 0 0 0.25rem var(--eve-accent);
+}
+
+/* --- Industry progress bar --- */
+.eve-progress {
+  height: 6px;
+  background-color: var(--eve-border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.eve-progress-bar {
+  background-color: var(--eve-accent);
+  height: 100%;
+  transition: width 0.3s;
+}
+
+/* --- Industry job status --- */
+.eve-status-active {
+  color: var(--eve-accent);
+  font-weight: 600;
+}
+
+.eve-status-ready {
+  color: var(--eve-success);
+  font-weight: 600;
+}
+
+.eve-status-delivered {
+  color: var(--eve-text-muted);
+}
+
+/* --- Skeleton loading placeholders --- */
+.skeleton {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--eve-bg-raised) 25%, var(--eve-bg-card) 50%, var(--eve-bg-raised) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+.skeleton-text {
+  height: 1em;
+  vertical-align: middle;
+}
+
+.skeleton-portrait {
+  width: 128px;
+  height: 128px;
+}
+
+@keyframes skeleton-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }

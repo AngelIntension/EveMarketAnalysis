@@ -1,24 +1,17 @@
 <!--
 Sync Impact Report
 ===================
-- Version change: (none) -> 1.0.0 (MAJOR: initial ratification)
-- Modified principles: N/A (initial creation)
-- Added sections:
-  - Principle I: Functional & Immutable Style
-  - Principle II: Sensitive Data Handling
-  - Principle III: Test-Driven Development (NON-NEGOTIABLE)
-  - Section: Performance & Infrastructure Constraints
-  - Section: General Governance Rules
-  - Governance footer
+- Version change: 1.0.0 -> 1.1.0 (MINOR: new performance constraints)
+- Modified principles: N/A
+- Added to Performance & Infrastructure Constraints:
+  - Parallel Dispatch: independent ESI calls must use Task.WhenAll
+  - Bulk Endpoints First: prefer POST /universe/names over per-ID calls
+  - Cache Immutability: never mutate cached data structures in place
 - Removed sections: N/A
 - Templates requiring updates:
   - .specify/templates/plan-template.md - ✅ no update needed
-    (Constitution Check section is dynamic, filled at plan time)
   - .specify/templates/spec-template.md - ✅ no update needed
-    (spec template is requirements-focused, not implementation)
   - .specify/templates/tasks-template.md - ✅ no update needed
-    (test-first ordering already present; TDD mandate enforced
-     at task generation time by constitution reference)
   - .specify/templates/commands/*.md - ✅ no command files exist
 - Follow-up TODOs: none
 -->
@@ -105,6 +98,19 @@ the following operational constraints:
 - **Caching**: Use `IMemoryCache` (or `IDistributedCache` when
   appropriate) to avoid redundant ESI requests. Cache durations
   MUST align with ESI cache expiry headers.
+- **Parallel Dispatch**: Independent ESI calls MUST be dispatched
+  concurrently (via `Task.WhenAll` or similar) rather than awaited
+  sequentially. Service orchestrators MUST NOT serialize calls that
+  have no data dependency on each other.
+- **Bulk Endpoints First**: When resolving multiple IDs to names or
+  metadata, PREFER bulk ESI endpoints (e.g., `POST /universe/names`)
+  over per-ID calls (e.g., `GET /universe/types/{id}`). A single
+  bulk call replaces hundreds of individual requests.
+- **Cache Immutability**: Cached data structures MUST NOT be mutated
+  after storage. If enrichment is needed (e.g., adding display names
+  to a group mapping), build a separate data structure rather than
+  modifying the cached one in place. Mutation of shared cache entries
+  corrupts downstream consumers that depend on the original shape.
 - **Purity of Wrappers**: Service classes that wrap the Kiota
   `ApiClient` MUST remain as pure as possible -- accept inputs,
   return immutable results, and push side-effects (HTTP, caching)
@@ -163,4 +169,4 @@ code reviews, and AI-generated outputs MUST comply.
 - Violations discovered post-merge MUST be tracked and
   remediated in the next sprint.
 
-**Version**: 1.0.0 | **Ratified**: 2026-03-12 | **Last Amended**: 2026-03-12
+**Version**: 1.1.0 | **Ratified**: 2026-03-12 | **Last Amended**: 2026-03-12

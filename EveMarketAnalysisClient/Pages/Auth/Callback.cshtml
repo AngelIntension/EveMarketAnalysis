@@ -1,0 +1,19 @@
+@page
+@model EveMarketAnalysisClient.Pages.Auth.CallbackModel
+@{
+    ViewData["Title"] = "Authentication Callback";
+}
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        <h4>Authentication Error</h4>
+        <p>@Model.ErrorMessage</p>
+        <a asp-page="/Auth/Login" class="btn btn-primary">Try Again</a>
+        <a asp-page="/Index" class="btn btn-secondary">Go Home</a>
+    </div>
+}
+else
+{
+    <p>Processing authentication...</p>
+}
