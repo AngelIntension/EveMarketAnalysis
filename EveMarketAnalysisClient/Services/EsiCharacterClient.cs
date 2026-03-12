@@ -92,10 +92,17 @@ public class EsiCharacterClient : IEsiCharacterClient
 
         var mapping = new Dictionary<int, (string GroupName, int GroupId)>();
 
-        foreach (var groupIdLong in category.Groups)
+        var groupTasks = category.Groups
+            .Select(g => (int)(g ?? 0))
+            .Select(async groupId =>
+            {
+                var group = await _apiClient.Universe.Groups[groupId].GetAsync(cancellationToken: cancellationToken);
+                return (GroupId: groupId, Group: group);
+            });
+        var groups = await Task.WhenAll(groupTasks);
+
+        foreach (var (groupId, group) in groups)
         {
-            var groupId = (int)(groupIdLong ?? 0);
-            var group = await _apiClient.Universe.Groups[groupId].GetAsync(cancellationToken: cancellationToken);
             if (group?.Name == null || group.Types == null)
                 continue;
 
@@ -125,23 +132,28 @@ public class EsiCharacterClient : IEsiCharacterClient
 
         if (idsToFetch.Count > 0)
         {
-            var nameTasks = idsToFetch.Select(async typeId =>
+            try
             {
-                try
+                var body = idsToFetch.Select(id => (long?)id).ToList();
+                var results = await _apiClient.Universe.Names.PostAsync(body, cancellationToken: cancellationToken);
+                if (results != null)
                 {
-                    var typeInfo = await _apiClient.Universe.Types[typeId].GetAsync(cancellationToken: cancellationToken);
-                    return (TypeId: typeId, Name: typeInfo?.Name ?? $"Skill {typeId}");
+                    foreach (var entry in results)
+                    {
+                        if (entry.Id.HasValue && entry.Name != null)
+                            nameCache[(int)entry.Id.Value] = entry.Name;
+                    }
                 }
-                catch
-                {
-                    return (TypeId: typeId, Name: $"Skill {typeId}");
-                }
-            });
-            var results = await Task.WhenAll(nameTasks);
+            }
+            catch
+            {
+                // Fall back to placeholder names if bulk resolve fails
+            }
 
-            foreach (var (typeId, name) in results)
+            // Fill any IDs that weren't resolved
+            foreach (var id in idsToFetch)
             {
-                nameCache[typeId] = name;
+                nameCache.TryAdd(id, $"Skill {id}");
             }
         }
 

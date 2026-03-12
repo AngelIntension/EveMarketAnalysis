@@ -27,6 +27,12 @@ public class CharacterService : ICharacterService
         _skillFilter = skillFilter;
     }
 
+    private static async Task<T> SafeAsync<T>(Func<Task<T>> func, T fallback)
+    {
+        try { return await func(); }
+        catch { return fallback; }
+    }
+
     public async Task<CharacterSummary?> GetCharacterSummaryAsync(
         int characterId, string characterName, CancellationToken cancellationToken = default)
     {
@@ -34,47 +40,37 @@ public class CharacterService : ICharacterService
         if (_cache.TryGetValue(cacheKey, out CharacterSummary? cached) && cached != null)
             return cached;
 
-        var portraitUrl = "https://images.evetech.net/characters/" + characterId + "/portrait?size=128";
-        var skills = ImmutableArray<CharacterSkill>.Empty;
-        var skillQueue = ImmutableArray<SkillQueueEntry>.Empty;
-        var groupMapping = new Dictionary<int, (string GroupName, int GroupId)>();
+        var defaultPortrait = "https://images.evetech.net/characters/" + characterId + "/portrait?size=128";
 
-        try
-        {
-            portraitUrl = await _esiClient.GetCharacterPortraitAsync(characterId, cancellationToken);
-        }
-        catch (Exception) { /* use default */ }
+        // Kick off all independent fetches in parallel
+        var portraitTask = SafeAsync(
+            () => _esiClient.GetCharacterPortraitAsync(characterId, cancellationToken), defaultPortrait);
+        var groupMappingTask = SafeAsync(
+            () => _esiClient.GetSkillGroupMappingAsync(cancellationToken),
+            new Dictionary<int, (string GroupName, int GroupId)>());
+        var skillsTask = SafeAsync(
+            () => _esiClient.GetCharacterSkillsAsync(characterId, cancellationToken),
+            ImmutableArray<CharacterSkill>.Empty);
+        var queueTask = SafeAsync(
+            () => _esiClient.GetSkillQueueAsync(characterId, cancellationToken),
+            ImmutableArray<SkillQueueEntry>.Empty);
+        var industryTask = SafeAsync<int?>(
+            async () => await _esiClient.GetIndustryJobCountAsync(characterId, cancellationToken), null);
+        var blueprintTask = SafeAsync<int?>(
+            async () => await _esiClient.GetBlueprintCountAsync(characterId, cancellationToken), null);
 
-        try
-        {
-            groupMapping = await _esiClient.GetSkillGroupMappingAsync(cancellationToken);
-            skills = await _esiClient.GetCharacterSkillsAsync(characterId, cancellationToken);
-        }
-        catch (Exception) { /* empty skills */ }
+        await Task.WhenAll(portraitTask, groupMappingTask, skillsTask, queueTask, industryTask, blueprintTask);
 
-        try
-        {
-            skillQueue = await _esiClient.GetSkillQueueAsync(characterId, cancellationToken);
-        }
-        catch (Exception) { /* empty queue */ }
+        var portraitUrl = portraitTask.Result;
+        var groupMapping = groupMappingTask.Result;
+        var skills = skillsTask.Result;
+        var skillQueue = queueTask.Result;
 
         var filteredSkills = _skillFilter.FilterToRelevantGroups(skills, groupMapping, RelevantGroupNames);
         var skillGroups = _skillFilter.GroupByCategory(filteredSkills, groupMapping);
 
-        int? industryJobCount = null;
-        int? blueprintCount = null;
-
-        try
-        {
-            industryJobCount = await _esiClient.GetIndustryJobCountAsync(characterId, cancellationToken);
-        }
-        catch (Exception) { /* null if fetch fails */ }
-
-        try
-        {
-            blueprintCount = await _esiClient.GetBlueprintCountAsync(characterId, cancellationToken);
-        }
-        catch (Exception) { /* null if fetch fails */ }
+        int? industryJobCount = industryTask.Result;
+        int? blueprintCount = blueprintTask.Result;
 
         var summary = new CharacterSummary(
             CharacterId: characterId,
