@@ -31,14 +31,15 @@ public class EsiCharacterClient : IEsiCharacterClient
         if (response?.Skills == null)
             return ImmutableArray<CharacterSkill>.Empty;
 
-        var groupMapping = await GetSkillGroupMappingAsync(cancellationToken);
+        var skillIds = response.Skills.Select(s => (int)(s.SkillId ?? 0)).ToList();
+        var skillNames = await ResolveSkillNamesAsync(skillIds, cancellationToken);
 
         return response.Skills
             .Select(s =>
             {
                 var skillId = (int)(s.SkillId ?? 0);
-                var skillName = groupMapping.TryGetValue(skillId, out var info)
-                    ? info.GroupName
+                var skillName = skillNames.TryGetValue(skillId, out var name)
+                    ? name
                     : $"Skill {skillId}";
                 return new CharacterSkill(
                     SkillId: skillId,
@@ -56,14 +57,24 @@ public class EsiCharacterClient : IEsiCharacterClient
         if (response == null)
             return ImmutableArray<SkillQueueEntry>.Empty;
 
+        var skillIds = response.Select(q => (int)(q.SkillId ?? 0)).ToList();
+        var skillNames = await ResolveSkillNamesAsync(skillIds, cancellationToken);
+
         return response
-            .Select(q => new SkillQueueEntry(
-                SkillId: (int)(q.SkillId ?? 0),
-                SkillName: $"Skill {q.SkillId}",
-                FinishedLevel: (int)(q.FinishedLevel ?? 0),
-                StartDate: q.StartDate,
-                FinishDate: q.FinishDate,
-                QueuePosition: (int)(q.QueuePosition ?? 0)))
+            .Select(q =>
+            {
+                var skillId = (int)(q.SkillId ?? 0);
+                var skillName = skillNames.TryGetValue(skillId, out var name)
+                    ? name
+                    : $"Skill {skillId}";
+                return new SkillQueueEntry(
+                    SkillId: skillId,
+                    SkillName: skillName,
+                    FinishedLevel: (int)(q.FinishedLevel ?? 0),
+                    StartDate: q.StartDate,
+                    FinishDate: q.FinishDate,
+                    QueuePosition: (int)(q.QueuePosition ?? 0));
+            })
             .ToImmutableArray();
     }
 
@@ -97,6 +108,44 @@ public class EsiCharacterClient : IEsiCharacterClient
 
         _cache.Set(cacheKey, mapping, SkillGroupCacheDuration);
         return mapping;
+    }
+
+    private async Task<Dictionary<int, string>> ResolveSkillNamesAsync(
+        IEnumerable<int> skillIds,
+        CancellationToken cancellationToken)
+    {
+        const string cacheKey = "esi:skillnames";
+        var nameCache = _cache.GetOrCreate(cacheKey, entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = SkillGroupCacheDuration;
+            return new Dictionary<int, string>();
+        })!;
+
+        var idsToFetch = skillIds.Where(id => !nameCache.ContainsKey(id)).Distinct().ToList();
+
+        if (idsToFetch.Count > 0)
+        {
+            var nameTasks = idsToFetch.Select(async typeId =>
+            {
+                try
+                {
+                    var typeInfo = await _apiClient.Universe.Types[typeId].GetAsync(cancellationToken: cancellationToken);
+                    return (TypeId: typeId, Name: typeInfo?.Name ?? $"Skill {typeId}");
+                }
+                catch
+                {
+                    return (TypeId: typeId, Name: $"Skill {typeId}");
+                }
+            });
+            var results = await Task.WhenAll(nameTasks);
+
+            foreach (var (typeId, name) in results)
+            {
+                nameCache[typeId] = name;
+            }
+        }
+
+        return nameCache;
     }
 
     public async Task<int> GetIndustryJobCountAsync(int characterId, CancellationToken cancellationToken = default)
