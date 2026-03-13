@@ -55,6 +55,11 @@ builder.Services.AddScoped<IEsiCharacterClient, EsiCharacterClient>();
 builder.Services.AddScoped<ISkillFilterService, SkillFilterService>();
 builder.Services.AddScoped<ICharacterService, CharacterService>();
 
+// Manufacturing profitability services
+builder.Services.AddSingleton<IBlueprintDataService, BlueprintDataService>();
+builder.Services.AddScoped<IEsiMarketClient, EsiMarketClient>();
+builder.Services.AddScoped<IProfitabilityCalculator, ProfitabilityCalculator>();
+
 // Add services to the container.
 builder.Services.AddRazorPages();
 

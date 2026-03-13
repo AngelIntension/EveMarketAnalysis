@@ -135,8 +135,11 @@ a:hover {
 }
 
 .table > :not(caption) > * > * {
-  background-color: transparent;
   border-bottom-color: var(--eve-border);
+}
+
+.table > thead > tr > * {
+  background-color: transparent;
 }
 
 .table > thead > tr > th {
@@ -145,6 +148,57 @@ a:hover {
   text-transform: uppercase;
   font-size: 0.8em;
   letter-spacing: 0.5px;
+}
+
+/* --- Table striped rows --- */
+.table > tbody > tr:nth-child(odd) > * {
+  background-color: var(--eve-bg-raised);
+}
+
+.table > tbody > tr:nth-child(even) > * {
+  background-color: var(--eve-bg-card);
+}
+
+/* Ensure all table body text is bright enough */
+.table > tbody > tr > td {
+  color: var(--eve-text);
+}
+
+/* --- Profitability row indicators (text color only, preserves striped bg) --- */
+.eve-row-profit > td {
+  color: #6ee68a;
+}
+
+.eve-row-loss > td {
+  color: #f08080;
+}
+
+.eve-row-warning > td {
+  color: #f0c040;
+}
+
+/* --- Form controls (dark theme) --- */
+.form-select,
+.form-control {
+  background-color: var(--eve-bg-card);
+  border-color: var(--eve-border);
+  color: var(--eve-text);
+}
+
+.form-select:focus,
+.form-control:focus {
+  background-color: var(--eve-bg-card);
+  border-color: var(--eve-accent);
+  color: var(--eve-text);
+}
+
+.form-label {
+  color: var(--eve-text-muted);
+}
+
+/* --- Sortable column headers --- */
+.sortable:hover {
+  color: var(--eve-accent) !important;
 }
 
 /* --- Badges --- */

@@ -1,0 +1,245 @@
+@page
+@model EveMarketAnalysisClient.Pages.ManufacturingProfitabilityModel
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@{
+    ViewData["Title"] = "Manufacturing Profitability";
+}
+
+<h2>Manufacturing Profitability</h2>
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        <p>@Model.ErrorMessage</p>
+    </div>
+}
+else
+{
+    <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
+
+    <div class="row mb-3 align-items-end">
+        <div class="col-auto">
+            <label for="region-select" class="form-label">Trade Hub Region</label>
+            <select id="region-select" class="form-select">
+                <option value="10000002" selected>The Forge (Jita)</option>
+                <option value="10000043">Domain (Amarr)</option>
+                <option value="10000032">Sinq Laison (Dodixie)</option>
+                <option value="10000042">Metropolis (Hek)</option>
+                <option value="10000030">Heimatar (Rens)</option>
+            </select>
+        </div>
+        <div class="col-auto">
+            <label for="tax-rate-input" class="form-label">Tax Rate (%)</label>
+            <input type="number" id="tax-rate-input" class="form-control" value="8" min="0" max="100" step="0.1" style="width:100px" />
+        </div>
+        <div class="col-auto">
+            <button id="refresh-btn" class="btn btn-outline-light" type="button">Refresh</button>
+        </div>
+    </div>
+
+    <div id="summary-bar" class="mb-3 d-none">
+        <span id="summary-text" class="text-muted"></span>
+    </div>
+
+    <div id="profitability-section">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>ME/TE</th>
+                    <th>Type</th>
+                    <th class="sortable" data-sort="profitMarginPercent">Profit %</th>
+                    <th class="sortable" data-sort="iskPerHour">ISK/Hour</th>
+                    <th class="sortable" data-sort="averageDailyVolume">Daily Volume</th>
+                    <th>Materials</th>
+                </tr>
+            </thead>
+            <tbody id="profitability-body">
+                @for (var i = 0; i < 5; i++)
+                {
+                    <tr>
+                        <td><span class="skeleton skeleton-text" style="width:140px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:60px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:40px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:70px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:100px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:80px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:200px"></span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        (function () {
+            var baseUrl = '@Url.Page("/ManufacturingProfitability", "Profitability")';
+            if (!baseUrl) return;
+
+            var currentData = null;
+            var currentSort = { field: 'iskPerHour', desc: true };
+
+            function getRegionId() {
+                return document.getElementById('region-select').value;
+            }
+
+            function getTaxRate() {
+                var val = parseFloat(document.getElementById('tax-rate-input').value);
+                if (isNaN(val) || val < 0 || val > 100) return 0.08;
+                return val / 100;
+            }
+
+            function fetchData() {
+                var regionId = getRegionId();
+                var taxRate = getTaxRate();
+                var url = baseUrl + '&regionId=' + regionId + '&taxRate=' + taxRate;
+
+                showSkeletons();
+
+                fetch(url, { credentials: 'same-origin' })
+                    .then(function (res) {
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        if (data.error) {
+                            showError(data.error);
+                            return;
+                        }
+                        currentData = data;
+                        renderResults(data);
+                    })
+                    .catch(function (err) {
+                        showError('Failed to load profitability data: ' + err.message);
+                    });
+            }
+
+            function showError(msg) {
+                var el = document.getElementById('error-alert');
+                el.textContent = msg;
+                el.classList.remove('d-none');
+            }
+
+            function showSkeletons() {
+                var html = '';
+                for (var i = 0; i < 5; i++) {
+                    html += '<tr>';
+                    html += '<td><span class="skeleton skeleton-text" style="width:140px"></span></td>';
+                    html += '<td><span class="skeleton skeleton-text" style="width:60px"></span></td>';
+                    html += '<td><span class="skeleton skeleton-text" style="width:40px"></span></td>';
+                    html += '<td><span class="skeleton skeleton-text" style="width:70px"></span></td>';
+                    html += '<td><span class="skeleton skeleton-text" style="width:100px"></span></td>';
+                    html += '<td><span class="skeleton skeleton-text" style="width:80px"></span></td>';
+                    html += '<td><span class="skeleton skeleton-text" style="width:200px"></span></td>';
+                    html += '</tr>';
+                }
+                document.getElementById('profitability-body').innerHTML = html;
+                document.getElementById('error-alert').classList.add('d-none');
+            }
+
+            function esc(str) {
+                var d = document.createElement('div');
+                d.textContent = str || '';
+                return d.innerHTML;
+            }
+
+            function formatNumber(n) {
+                return Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+            }
+
+            function formatDecimal(n, digits) {
+                return Number(n).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+            }
+
+            function renderResults(data) {
+                var summaryBar = document.getElementById('summary-bar');
+                summaryBar.classList.remove('d-none');
+                document.getElementById('summary-text').textContent =
+                    data.regionName + ' | ' + data.totalBlueprints + ' blueprints | ' +
+                    data.successCount + ' calculated | ' + data.errorCount + ' errors | ' +
+                    'Tax: ' + (data.taxRate * 100).toFixed(1) + '%';
+
+                var results = data.results;
+                if (!results || results.length === 0) {
+                    document.getElementById('profitability-body').innerHTML =
+                        '<tr><td colspan="7" class="text-muted text-center">No blueprints found. Acquire some blueprints in-game to see profitability analysis.</td></tr>';
+                    return;
+                }
+
+                sortResults(results);
+                renderTable(results);
+            }
+
+            function sortResults(results) {
+                results.sort(function (a, b) {
+                    var av = a[currentSort.field] || 0;
+                    var bv = b[currentSort.field] || 0;
+                    return currentSort.desc ? bv - av : av - bv;
+                });
+            }
+
+            function renderTable(results) {
+                var html = '';
+                for (var i = 0; i < results.length; i++) {
+                    var r = results[i];
+                    var rowClass = '';
+                    if (r.errorMessage) rowClass = ' class="eve-row-warning"';
+                    else if (r.grossProfit > 0) rowClass = ' class="eve-row-profit"';
+                    else if (r.grossProfit < 0) rowClass = ' class="eve-row-loss"';
+
+                    var materialsSummary = '';
+                    if (r.materials && r.materials.length > 0) {
+                        materialsSummary = r.materials.slice(0, 3).map(function (m) {
+                            return esc(m.typeName) + ' x' + formatNumber(m.adjustedQuantity);
+                        }).join(', ');
+                        if (r.materials.length > 3) materialsSummary += ' +' + (r.materials.length - 3) + ' more';
+                    }
+
+                    var bpoLabel = r.blueprint.isCopy ? 'BPC' : 'BPO';
+
+                    html += '<tr' + rowClass + '>';
+                    html += '<td>' + esc(r.producedTypeName);
+                    if (r.errorMessage) html += '<br><small class="text-warning">' + esc(r.errorMessage) + '</small>';
+                    html += '</td>';
+                    html += '<td>ME ' + r.blueprint.materialEfficiency + ' / TE ' + r.blueprint.timeEfficiency + '</td>';
+                    html += '<td>' + bpoLabel + '</td>';
+                    html += '<td>' + formatDecimal(r.profitMarginPercent, 1) + '%</td>';
+                    html += '<td>' + formatNumber(r.iskPerHour) + '</td>';
+                    html += '<td>' + formatDecimal(r.averageDailyVolume, 0) + '</td>';
+                    html += '<td><small>' + materialsSummary + '</small></td>';
+                    html += '</tr>';
+                }
+                document.getElementById('profitability-body').innerHTML = html;
+            }
+
+            // Column sorting
+            document.querySelectorAll('.sortable').forEach(function (th) {
+                th.style.cursor = 'pointer';
+                th.addEventListener('click', function () {
+                    var field = th.getAttribute('data-sort');
+                    if (currentSort.field === field) {
+                        currentSort.desc = !currentSort.desc;
+                    } else {
+                        currentSort.field = field;
+                        currentSort.desc = true;
+                    }
+                    if (currentData && currentData.results) {
+                        sortResults(currentData.results);
+                        renderTable(currentData.results);
+                    }
+                });
+            });
+
+            // Region selector and tax rate change handlers
+            document.getElementById('region-select').addEventListener('change', fetchData);
+            document.getElementById('refresh-btn').addEventListener('click', fetchData);
+            document.getElementById('tax-rate-input').addEventListener('change', fetchData);
+
+            // Initial load
+            fetchData();
+        })();
+    </script>
+}
