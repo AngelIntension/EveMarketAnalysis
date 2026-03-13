@@ -51,7 +51,7 @@ Static data mapping a blueprint type to its manufacturing activity (what it prod
 | BaseTime | int | Base manufacturing time in seconds |
 | Materials | MaterialRequirement[] | Required input materials |
 
-**Source**: Bundled SDE JSON file (`sde/blueprints.json`)
+**Source**: Bundled SDE JSON file (`EveMarketAnalysisClient/Data/blueprints.json`)
 **Identity**: BlueprintTypeId
 **Lifecycle**: Static — only changes with game patches
 

@@ -103,7 +103,7 @@ EveMarketAnalysisClient.Tests/
 │   └── TradeHubRegionTests.cs                   # New tests
 ├── Services/
 │   ├── EsiMarketClientTests.cs                  # New tests
-│   └── ProfitabilityIntegrationTests.cs         # New tests
+│   └── ProfitabilityIntegrationTests.cs          # New tests
 └── Pages/
     └── ManufacturingProfitabilityPageTests.cs   # New tests
 ```

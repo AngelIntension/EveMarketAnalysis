@@ -93,9 +93,10 @@ The Manufacturing Profitability page follows the existing skeleton loading patte
 ### IEsiMarketClient
 
 ```
-GetMarketOrdersAsync(regionId, typeId) → MarketSnapshot
-GetMarketHistoryAsync(regionId, typeId) → MarketHistory
+GetMarketSnapshotAsync(regionId, typeId) → MarketSnapshot
 ```
+
+Combines order fetching (lowest sell, highest buy) and history fetching (30-day average volume) into a single call that returns an immutable MarketSnapshot record. Caches results per (regionId, typeId) with 5-minute TTL.
 
 ### IBlueprintDataService
 

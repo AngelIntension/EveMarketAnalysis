@@ -43,8 +43,8 @@ As a player, I want each blueprint's profitability calculated using my actual ma
 **Acceptance Scenarios**:
 
 1. **Given** a blueprint with ME 10 and TE 20, **When** profitability is calculated, **Then** material quantities are reduced by the ME bonus (standard EVE formula rounding) and production time reflects the TE bonus.
-2. **Given** current market data in The Forge, **When** material costs are calculated, **Then** each material uses the lowest available sell order price multiplied by required quantity.
-3. **Given** current market data in The Forge, **When** the product sell value is determined, **Then** it uses the highest buy order price, falling back to the lowest sell order price if no buy orders exist.
+2. **Given** current market data in the selected region, **When** material costs are calculated, **Then** each material uses the lowest available sell order price multiplied by required quantity.
+3. **Given** current market data in the selected region, **When** the product sell value is determined, **Then** it uses the highest buy order price, falling back to the lowest sell order price if no buy orders exist.
 4. **Given** a calculated profitability, **When** displayed to the user, **Then** the profit accounts for an estimated job installation fee and broker/transaction taxes (default 8% combined rate).
 
 ---
@@ -93,7 +93,7 @@ As a player, I want clear feedback when something goes wrong (no blueprints, ESI
 
 1. **Given** a logged-in player with zero blueprints, **When** the profitability page loads, **Then** a friendly message is displayed explaining they have no blueprints and suggesting how to acquire them.
 2. **Given** the ESI service is unavailable or returns errors, **When** the page attempts to load, **Then** an error message is shown explaining the data source is temporarily unavailable.
-3. **Given** a blueprint whose produced item has no market orders in The Forge, **When** profitability is calculated, **Then** that item is shown with "No market data" instead of misleading zero values.
+3. **Given** a blueprint whose produced item has no market orders in the selected region, **When** profitability is calculated, **Then** that item is shown with "No market data" instead of misleading zero values.
 4. **Given** a partial failure (some blueprints succeed, some fail), **When** results are displayed, **Then** successful calculations are shown and failed items are listed separately with error indicators.
 
 ---
@@ -114,8 +114,8 @@ As a player, I want clear feedback when something goes wrong (no blueprints, ESI
 - **FR-001**: System MUST require authentication to access the Manufacturing Profitability page, redirecting unauthenticated users to the login flow.
 - **FR-002**: System MUST fetch the authenticated character's personal blueprints from ESI, including type_id, material efficiency, time efficiency, and quantity/runs information.
 - **FR-003**: System MUST resolve each blueprint's manufacturing output (produced item type_id) and required materials from a bundled static dataset derived from the EVE Online SDE.
-- **FR-004**: System MUST calculate adjusted material quantities for each blueprint using the EVE Online ME formula: `max(runs, ceil(runs * base_quantity * (1 - ME/100)))` per material.
-- **FR-005**: System MUST calculate production time using: `base_time * (1 - TE_bonus) * skill_modifiers` (skill modifiers assumed as 1.0 for v1 — see Assumptions).
+- **FR-004**: System MUST calculate adjusted material quantities for each blueprint using the EVE Online ME formula per single run: `max(1, ceil(base_quantity * (1 - ME/100)))` per material.
+- **FR-005**: System MUST calculate production time using: `base_time * (1 - TimeEfficiency/100) * skill_modifiers` where TimeEfficiency is the blueprint's TE level (0-20), and skill modifiers are assumed as 1.0 for v1 (see Assumptions).
 - **FR-006**: System MUST fetch current market orders from the selected region for all relevant item types (materials and produced items).
 - **FR-007**: System MUST determine material buy cost using the lowest sell order price for each material type in the selected region.
 - **FR-008**: System MUST determine product sell value using the highest buy order price in the selected region, falling back to the lowest sell order price if no buy orders exist.
@@ -127,7 +127,7 @@ As a player, I want clear feedback when something goes wrong (no blueprints, ESI
 - **FR-014**: System MUST fetch market history from the selected region for each produced item to determine average daily trade volume.
 - **FR-015**: System MUST display results in a table with columns: item name, profit margin %, ISK/hour, average daily volume, and required materials summary.
 - **FR-016**: System MUST sort the table by ISK/hour descending by default.
-- **FR-017**: System MUST allow the user to re-sort the table by clicking column headers (profit %, ISK/hour, daily volume).
+- **FR-017**: System MUST allow the user to re-sort the table by clicking column headers. Sortable columns: profit margin %, ISK/hour, and daily volume.
 - **FR-018**: System MUST limit displayed results to the top 50 items (by default sort) to maintain usability.
 - **FR-019**: System MUST show a loading state while profitability data is being calculated.
 - **FR-020**: System MUST display appropriate messages for error conditions: no blueprints, ESI unavailable, missing market data.
@@ -136,10 +136,10 @@ As a player, I want clear feedback when something goes wrong (no blueprints, ESI
 - **FR-023**: System MUST provide a region selector with five trade hub regions: The Forge (Jita), Domain (Amarr), Sinq Laison (Dodixie), Metropolis (Hek), Heimatar (Rens).
 - **FR-024**: System MUST default the region selector to The Forge (Jita).
 - **FR-025**: System MUST recalculate all profitability data when the user changes the selected region.
-- **FR-026**: System MUST persist the selected region for the duration of the user's session.
+- **FR-026**: System MUST persist the selected region for the duration of the user's browser session (client-side state; lost on page refresh is acceptable for v1).
 - **FR-027**: System MUST provide a tax rate input field defaulting to 8%, allowing users to adjust the combined broker/transaction tax percentage.
 - **FR-028**: System MUST recalculate all profitability data when the user changes the tax rate.
-- **FR-029**: System MUST persist the user-adjusted tax rate for the duration of the session.
+- **FR-029**: System MUST persist the user-adjusted tax rate for the duration of the user's browser session (client-side state; lost on page refresh is acceptable for v1).
 
 ### Key Entities
 
