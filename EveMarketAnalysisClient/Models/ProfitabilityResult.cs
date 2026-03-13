@@ -16,5 +16,6 @@ public record ProfitabilityResult(
     int ProductionTimeSeconds,
     double IskPerHour,
     double AverageDailyVolume,
+    double TotalMaterialVolume,
     bool HasMarketData,
     string? ErrorMessage);

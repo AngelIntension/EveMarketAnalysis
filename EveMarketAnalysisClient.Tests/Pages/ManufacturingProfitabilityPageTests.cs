@@ -89,7 +89,7 @@ public class ManufacturingProfitabilityPageTests
                 blueprints[0], "Rifter", 587,
                 ImmutableArray<MaterialRequirement>.Empty,
                 100000m, 150000m, 12000m, 1500m, 36500m,
-                36.5, 4320, 30416.67, 1250.5, true, null));
+                36.5, 4320, 30416.67, 1250.5, 500.0, true, null));
 
         calculator.Setup(c => c.CalculateAsync(
                 It.IsAny<ImmutableArray<CharacterBlueprint>>(),
@@ -221,11 +221,11 @@ public class ManufacturingProfitabilityPageTests
                 blueprints[0], "Rifter", 587,
                 ImmutableArray<MaterialRequirement>.Empty,
                 100000m, 150000m, 12000m, 1500m, 36500m,
-                36.5, 4320, 30416.67, 1250.5, true, null),
+                36.5, 4320, 30416.67, 1250.5, 500.0, true, null),
             new ProfitabilityResult(
                 blueprints[1], string.Empty, 0,
                 ImmutableArray<MaterialRequirement>.Empty,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, false, "No manufacturing data"));
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, "No manufacturing data"));
 
         calculator.Setup(c => c.CalculateAsync(
                 It.IsAny<ImmutableArray<CharacterBlueprint>>(),

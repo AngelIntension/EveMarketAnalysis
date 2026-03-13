@@ -52,6 +52,7 @@ else
                     <th class="sortable" data-sort="profitMarginPercent">Profit %</th>
                     <th class="sortable" data-sort="iskPerHour">ISK/Hour</th>
                     <th class="sortable" data-sort="averageDailyVolume">Daily Volume</th>
+                    <th class="sortable" data-sort="totalMaterialVolume">Mat. Volume (m³)</th>
                     <th>Materials</th>
                 </tr>
             </thead>
@@ -65,6 +66,7 @@ else
                         <td><span class="skeleton skeleton-text" style="width:70px"></span></td>
                         <td><span class="skeleton skeleton-text" style="width:100px"></span></td>
                         <td><span class="skeleton skeleton-text" style="width:80px"></span></td>
+                        <td><span class="skeleton skeleton-text" style="width:90px"></span></td>
                         <td><span class="skeleton skeleton-text" style="width:200px"></span></td>
                     </tr>
                 }
@@ -133,6 +135,7 @@ else
                     html += '<td><span class="skeleton skeleton-text" style="width:70px"></span></td>';
                     html += '<td><span class="skeleton skeleton-text" style="width:100px"></span></td>';
                     html += '<td><span class="skeleton skeleton-text" style="width:80px"></span></td>';
+                    html += '<td><span class="skeleton skeleton-text" style="width:90px"></span></td>';
                     html += '<td><span class="skeleton skeleton-text" style="width:200px"></span></td>';
                     html += '</tr>';
                 }
@@ -165,7 +168,7 @@ else
                 var results = data.results;
                 if (!results || results.length === 0) {
                     document.getElementById('profitability-body').innerHTML =
-                        '<tr><td colspan="7" class="text-muted text-center">No blueprints found. Acquire some blueprints in-game to see profitability analysis.</td></tr>';
+                        '<tr><td colspan="8" class="text-muted text-center">No blueprints found. Acquire some blueprints in-game to see profitability analysis.</td></tr>';
                     return;
                 }
 
@@ -209,6 +212,7 @@ else
                     html += '<td>' + formatDecimal(r.profitMarginPercent, 1) + '%</td>';
                     html += '<td>' + formatNumber(r.iskPerHour) + '</td>';
                     html += '<td>' + formatDecimal(r.averageDailyVolume, 0) + '</td>';
+                    html += '<td>' + formatNumber(r.totalMaterialVolume) + ' m³</td>';
                     html += '<td><small>' + materialsSummary + '</small></td>';
                     html += '</tr>';
                 }

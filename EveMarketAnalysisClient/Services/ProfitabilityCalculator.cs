@@ -99,13 +99,30 @@ public class ProfitabilityCalculator : IProfitabilityCalculator
             typeNames = new Dictionary<int, string>();
         }
 
-        // 4. Calculate profitability for each blueprint
+        // 4. Resolve type volumes for material types
+        var materialTypeIds = new HashSet<int>();
+        foreach (var (_, activity) in blueprintActivities)
+            foreach (var mat in activity.Materials)
+                materialTypeIds.Add(mat.TypeId);
+
+        Dictionary<int, double> typeVolumes;
+        try
+        {
+            typeVolumes = await ResolveTypeVolumesAsync(materialTypeIds, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve type volumes");
+            typeVolumes = new Dictionary<int, double>();
+        }
+
+        // 5. Calculate profitability for each blueprint
         var results = new List<ProfitabilityResult>();
         foreach (var (bp, activity) in blueprintActivities)
         {
             try
             {
-                var result = CalculateSingle(bp, activity, settings, marketSnapshots, typeNames);
+                var result = CalculateSingle(bp, activity, settings, marketSnapshots, typeNames, typeVolumes);
                 results.Add(result);
             }
             catch (Exception ex)
@@ -115,7 +132,7 @@ public class ProfitabilityCalculator : IProfitabilityCalculator
             }
         }
 
-        // 5. Sort by ISK/hour descending, limit to top 50
+        // 6. Sort by ISK/hour descending, limit to top 50
         var sorted = results
             .Where(r => r.HasMarketData)
             .OrderByDescending(r => r.IskPerHour)
@@ -132,7 +149,8 @@ public class ProfitabilityCalculator : IProfitabilityCalculator
         BlueprintActivity activity,
         ProfitabilitySettings settings,
         Dictionary<int, MarketSnapshot> snapshots,
-        Dictionary<int, string> typeNames)
+        Dictionary<int, string> typeNames,
+        Dictionary<int, double> typeVolumes)
     {
         // ME-adjusted material quantities
         var adjustedMaterials = activity.Materials
@@ -140,7 +158,8 @@ public class ProfitabilityCalculator : IProfitabilityCalculator
             {
                 var adjustedQty = Math.Max(1, (int)Math.Ceiling(mat.BaseQuantity * (1.0 - bp.MaterialEfficiency / 100.0)));
                 var name = typeNames.TryGetValue(mat.TypeId, out var n) ? n : $"Type {mat.TypeId}";
-                return mat with { AdjustedQuantity = adjustedQty, TypeName = name };
+                var volume = typeVolumes.GetValueOrDefault(mat.TypeId);
+                return mat with { AdjustedQuantity = adjustedQty, TypeName = name, Volume = volume };
             })
             .ToImmutableArray();
 
@@ -188,6 +207,9 @@ public class ProfitabilityCalculator : IProfitabilityCalculator
             ? (double)grossProfit / (productionTimeSeconds / 3600.0)
             : 0.0;
 
+        // Total material volume (m³)
+        var totalMaterialVolume = adjustedMaterials.Sum(m => m.Volume * m.AdjustedQuantity);
+
         var producedName = typeNames.TryGetValue(activity.ProducedTypeId, out var pName) ? pName : $"Type {activity.ProducedTypeId}";
 
         string? errorMessage = null;
@@ -210,6 +232,7 @@ public class ProfitabilityCalculator : IProfitabilityCalculator
             ProductionTimeSeconds: productionTimeSeconds,
             IskPerHour: iskPerHour,
             AverageDailyVolume: averageDailyVolume,
+            TotalMaterialVolume: totalMaterialVolume,
             HasMarketData: hasMarketData,
             ErrorMessage: errorMessage);
     }
@@ -257,6 +280,47 @@ public class ProfitabilityCalculator : IProfitabilityCalculator
         return nameCache;
     }
 
+    private async Task<Dictionary<int, double>> ResolveTypeVolumesAsync(
+        HashSet<int> typeIds, CancellationToken cancellationToken)
+    {
+        const string cacheKey = "esi:typevolumes";
+        var volumeCache = _cache.GetOrCreate(cacheKey, entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = NameCacheDuration;
+            return new Dictionary<int, double>();
+        })!;
+
+        var idsToFetch = typeIds.Where(id => !volumeCache.ContainsKey(id)).ToList();
+
+        if (idsToFetch.Count > 0)
+        {
+            var volumeTasks = idsToFetch.Select(async typeId =>
+            {
+                await ConcurrencyLimiter.WaitAsync(cancellationToken);
+                try
+                {
+                    var typeInfo = await _apiClient.Universe.Types[typeId].GetAsync(cancellationToken: cancellationToken);
+                    return (typeId, volume: typeInfo?.Volume ?? 0.0);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to fetch volume for type {TypeId}", typeId);
+                    return (typeId, volume: 0.0);
+                }
+                finally
+                {
+                    ConcurrencyLimiter.Release();
+                }
+            });
+
+            var results = await Task.WhenAll(volumeTasks);
+            foreach (var (typeId, volume) in results)
+                volumeCache.TryAdd(typeId, volume);
+        }
+
+        return volumeCache;
+    }
+
     private static ProfitabilityResult CreateErrorResult(CharacterBlueprint bp, string errorMessage)
     {
         return new ProfitabilityResult(
@@ -273,6 +337,7 @@ public class ProfitabilityCalculator : IProfitabilityCalculator
             ProductionTimeSeconds: 0,
             IskPerHour: 0,
             AverageDailyVolume: 0,
+            TotalMaterialVolume: 0,
             HasMarketData: false,
             ErrorMessage: errorMessage);
     }
