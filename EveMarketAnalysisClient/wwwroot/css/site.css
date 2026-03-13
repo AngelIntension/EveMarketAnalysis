@@ -196,6 +196,18 @@ a:hover {
   color: var(--eve-text-muted);
 }
 
+/* --- Profitability table column sizing --- */
+.table td,
+.table th {
+  white-space: nowrap;
+}
+
+.table td:last-child,
+.table th:last-child {
+  white-space: normal;
+  width: 100%;
+}
+
 /* --- Sortable column headers --- */
 .sortable:hover {
   color: var(--eve-accent) !important;
