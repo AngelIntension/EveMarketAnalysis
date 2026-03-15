@@ -529,28 +529,75 @@ else
 
             function generateClipboardText() {
                 var items = currentShoppingList.items;
-                var hasCosts = currentCosts && currentCosts.costs && currentCosts.costs.length > 0;
-                var lines = [];
-                var header = 'Material Name\tQuantity\tCategory';
-                if (hasCosts) header += '\tSell Price\tSell Total\tBuy Price\tBuy Total\tSavings\tVolume (m³)\tTotal Volume (m³)';
-                lines.push(header);
+                if (!items || items.length === 0) return '';
 
+                function fmtVol(v) { return v != null && v > 0 ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m³' : '—'; }
+
+                // --- Build summary table ---
+                var selected = getSelectedBlueprints();
+                var buildRows = [];
+                for (var s = 0; s < selected.length; s++) {
+                    var sel = selected[s];
+                    var bp = allBlueprints.find(function (b) { return b.typeId === sel.blueprintTypeId; });
+                    if (bp) buildRows.push({ name: bp.typeName || 'Unknown', runs: formatNumber(sel.runs) });
+                }
+
+                var buildNameWidth = 'Blueprint'.length;
+                var buildRunsWidth = 'Runs'.length;
+                for (var i = 0; i < buildRows.length; i++) {
+                    buildNameWidth = Math.max(buildNameWidth, buildRows[i].name.length);
+                    buildRunsWidth = Math.max(buildRunsWidth, buildRows[i].runs.length);
+                }
+
+                function pad(str, width) { return str + ' '.repeat(Math.max(0, width - str.length)); }
+                function rpad(str, width) { return ' '.repeat(Math.max(0, width - str.length)) + str; }
+
+                var lines = [];
+                lines.push('BUILD PLAN');
+                lines.push(pad('Blueprint', buildNameWidth) + '  ' + rpad('Runs', buildRunsWidth));
+                lines.push('-'.repeat(buildNameWidth) + '  ' + '-'.repeat(buildRunsWidth));
+                for (var i = 0; i < buildRows.length; i++) {
+                    lines.push(pad(buildRows[i].name, buildNameWidth) + '  ' + rpad(buildRows[i].runs, buildRunsWidth));
+                }
+                lines.push('');
+
+                // Build rows data first to measure widths
+                var rows = [];
+                var totalVolume = 0;
                 for (var i = 0; i < items.length; i++) {
                     var item = items[i];
-                    var line = item.typeName + '\t' + item.totalQuantity + '\t' + (item.category || '');
-                    if (hasCosts) {
+                    var vol = 0;
+                    if (currentCosts && currentCosts.costs) {
                         var cost = currentCosts.costs.find(function (c) { return c.typeId === item.typeId; });
-                        var sellPrice = cost && cost.sellPrice != null ? cost.sellPrice.toFixed(2) : 'N/A';
-                        var sellTotal = cost && cost.sellPrice != null ? (cost.sellPrice * item.totalQuantity).toFixed(2) : 'N/A';
-                        var buyPrice = cost && cost.buyPrice != null ? cost.buyPrice.toFixed(2) : 'N/A';
-                        var buyTotal = cost && cost.buyPrice != null ? (cost.buyPrice * item.totalQuantity).toFixed(2) : 'N/A';
-                        var savings = cost && cost.sellPrice != null && cost.buyPrice != null ? ((cost.sellPrice - cost.buyPrice) * item.totalQuantity).toFixed(2) : 'N/A';
-                        var vol = cost ? cost.volume.toFixed(2) : '0.00';
-                        var totalVol = cost ? (cost.volume * item.totalQuantity).toFixed(2) : '0.00';
-                        line += '\t' + sellPrice + '\t' + sellTotal + '\t' + buyPrice + '\t' + buyTotal + '\t' + savings + '\t' + vol + '\t' + totalVol;
+                        if (cost) vol = cost.volume * item.totalQuantity;
                     }
-                    lines.push(line);
+                    totalVolume += vol;
+                    rows.push({ name: item.typeName || '', qty: formatNumber(item.totalQuantity), vol: fmtVol(vol) });
                 }
+
+                var totalRow = { name: 'Total', qty: '', vol: fmtVol(totalVolume) };
+
+                var nameWidth = 'Material'.length;
+                var qtyWidth = 'Quantity'.length;
+                var volWidth = 'Volume'.length;
+                var allRows = rows.concat([totalRow]);
+                for (var i = 0; i < allRows.length; i++) {
+                    nameWidth = Math.max(nameWidth, allRows[i].name.length);
+                    qtyWidth = Math.max(qtyWidth, allRows[i].qty.length);
+                    volWidth = Math.max(volWidth, allRows[i].vol.length);
+                }
+
+                lines.push('MATERIALS');
+                lines.push(pad('Material', nameWidth) + '  ' + rpad('Quantity', qtyWidth) + '  ' + rpad('Volume', volWidth));
+                lines.push('-'.repeat(nameWidth) + '  ' + '-'.repeat(qtyWidth) + '  ' + '-'.repeat(volWidth));
+
+                for (var i = 0; i < rows.length; i++) {
+                    lines.push(pad(rows[i].name, nameWidth) + '  ' + rpad(rows[i].qty, qtyWidth) + '  ' + rpad(rows[i].vol, volWidth));
+                }
+
+                lines.push('-'.repeat(nameWidth) + '  ' + '-'.repeat(qtyWidth) + '  ' + '-'.repeat(volWidth));
+                lines.push(pad(totalRow.name, nameWidth) + '  ' + rpad(totalRow.qty, qtyWidth) + '  ' + rpad(totalRow.vol, volWidth));
+
                 return lines.join('\n');
             }
 
