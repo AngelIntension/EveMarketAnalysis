@@ -104,9 +104,10 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
                 allTypeIds, configuration.SellingHubRegionId, cancellationToken);
         }
 
-        // 5. Fetch system cost index
+        // 5. Fetch system cost index and adjusted prices (for EIV calculation)
         var costIndex = await GetManufacturingCostIndexAsync(
             configuration.ManufacturingSystemId, cancellationToken);
+        var adjustedPrices = await GetAdjustedPricesAsync(cancellationToken);
 
         // 6. Resolve type names
         var typeNames = await ResolveTypeNamesAsync(allTypeIds, cancellationToken);
@@ -124,7 +125,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             {
                 var entry = CalculateRankingEntry(
                     bp, activity, configuration, marketSnapshots, sellingSnapshots,
-                    typeNames, costIndex, currentPhaseNumber);
+                    typeNames, costIndex, adjustedPrices, currentPhaseNumber);
                 rankings.Add(entry);
             }
             catch (Exception ex)
@@ -175,12 +176,12 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         // Generate BPO recommendations
         var bpoRecommendations = await GenerateBpoRecommendationsAsync(
             blueprints, currentPhaseNumber, phases, configuration,
-            marketSnapshots, typeNames, costIndex, cancellationToken);
+            marketSnapshots, typeNames, costIndex, adjustedPrices, cancellationToken);
 
         // 12. Generate research recommendations
         var researchRecommendations = GenerateResearchRecommendations(
             eligibleBlueprints, configuration, marketSnapshots, sellingSnapshots,
-            typeNames, costIndex);
+            typeNames, costIndex, adjustedPrices);
 
         var successCount = sortedRankings.Count(r => r.ErrorMessage == null);
         var errorCount = sortedRankings.Count(r => r.ErrorMessage != null);
@@ -207,25 +208,29 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         Dictionary<int, MarketSnapshot>? sellingSnapshots,
         Dictionary<int, string> typeNames,
         double costIndex,
+        Dictionary<int, decimal> adjustedPrices,
         int currentPhaseNumber)
     {
         var effectiveME = config.WhatIfME ?? bp.MaterialEfficiency;
         var effectiveTE = config.WhatIfTE ?? bp.TimeEfficiency;
 
         // ME-adjusted material cost (highest buy at procurement station)
+        // and Estimated Item Value (EIV) using CCP adjusted prices
         var materialCost = 0m;
+        var estimatedItemValue = 0m;
         var hasMaterialPrices = true;
         foreach (var mat in activity.Materials)
         {
             var adjustedQty = Math.Max(1, (int)Math.Ceiling(mat.BaseQuantity * (1.0 - effectiveME / 100.0)));
+
             if (procurementSnapshots.TryGetValue(mat.TypeId, out var matSnapshot) && matSnapshot.HighestBuyPrice.HasValue)
-            {
                 materialCost += matSnapshot.HighestBuyPrice.Value * adjustedQty;
-            }
             else
-            {
                 hasMaterialPrices = false;
-            }
+
+            // EIV uses adjusted_price (CCP's reference price) × base quantity (not ME-adjusted)
+            if (adjustedPrices.TryGetValue(mat.TypeId, out var adjPrice))
+                estimatedItemValue += adjPrice * mat.BaseQuantity;
         }
 
         // Product revenue (lowest sell at selling hub)
@@ -251,11 +256,12 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         // Sales tax
         var salesTax = productRevenue * (config.SalesTaxPercent / 100m);
 
-        // System cost fee (cost index × estimated item value)
-        var systemCostFee = (decimal)costIndex * productRevenue;
+        // Job installation cost = EIV × (system cost index + facility tax rate)
+        var systemCostFee = estimatedItemValue * (decimal)costIndex;
+        var facilityTax = estimatedItemValue * (config.FacilityTaxPercent / 100m);
 
         // Gross profit
-        var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee;
+        var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee - facilityTax;
 
         // Profit margin
         var profitMarginPercent = materialCost > 0 ? grossProfit / materialCost * 100m : 0m;
@@ -288,6 +294,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             SellingBrokerFee: sellingBrokerFee,
             SalesTax: salesTax,
             SystemCostFee: systemCostFee,
+            FacilityTax: facilityTax,
             GrossProfit: grossProfit,
             ProfitMarginPercent: profitMarginPercent,
             ProductionTimeSeconds: productionTimeSeconds,
@@ -359,6 +366,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         Dictionary<int, MarketSnapshot> marketSnapshots,
         Dictionary<int, string> typeNames,
         double costIndex,
+        Dictionary<int, decimal> adjustedPrices,
         CancellationToken cancellationToken)
     {
         var phase = phases.FirstOrDefault(p => p.PhaseNumber == recommendationPhase);
@@ -382,7 +390,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
             // Calculate projected ISK/hr at ME10/TE20
             var projectedIskPerHour = CalculateProjectedIskPerHour(
-                activity, 10, 20, config, marketSnapshots, costIndex);
+                activity, 10, 20, config, marketSnapshots, costIndex, adjustedPrices: adjustedPrices);
 
             // Fetch region-wide BPO market data (includes NPC detection via order duration)
             MarketSnapshot? bpoSnapshot = null;
@@ -439,7 +447,8 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         Dictionary<int, MarketSnapshot> procurementSnapshots,
         Dictionary<int, MarketSnapshot>? sellingSnapshots,
         Dictionary<int, string> typeNames,
-        double costIndex)
+        double costIndex,
+        Dictionary<int, decimal> adjustedPrices)
     {
         var recommendations = new List<ResearchRecommendation>();
 
@@ -450,10 +459,10 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
             var currentIskPerHour = CalculateProjectedIskPerHour(
                 activity, bp.MaterialEfficiency, bp.TimeEfficiency,
-                config, procurementSnapshots, costIndex, sellingSnapshots);
+                config, procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices);
 
             var projectedIskPerHour = CalculateProjectedIskPerHour(
-                activity, 10, 20, config, procurementSnapshots, costIndex, sellingSnapshots);
+                activity, 10, 20, config, procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices);
 
             var gain = projectedIskPerHour - currentIskPerHour;
             if (gain <= 0) continue;
@@ -486,14 +495,19 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         PortfolioConfiguration config,
         Dictionary<int, MarketSnapshot> procurementSnapshots,
         double costIndex,
-        Dictionary<int, MarketSnapshot>? sellingSnapshots = null)
+        Dictionary<int, MarketSnapshot>? sellingSnapshots = null,
+        Dictionary<int, decimal>? adjustedPrices = null)
     {
         var materialCost = 0m;
+        var estimatedItemValue = 0m;
         foreach (var mat in activity.Materials)
         {
             var adjustedQty = Math.Max(1, (int)Math.Ceiling(mat.BaseQuantity * (1.0 - me / 100.0)));
             if (procurementSnapshots.TryGetValue(mat.TypeId, out var matSnapshot) && matSnapshot.HighestBuyPrice.HasValue)
                 materialCost += matSnapshot.HighestBuyPrice.Value * adjustedQty;
+
+            if (adjustedPrices != null && adjustedPrices.TryGetValue(mat.TypeId, out var adjPrice))
+                estimatedItemValue += adjPrice * mat.BaseQuantity;
         }
 
         var productSnapshots = sellingSnapshots ?? procurementSnapshots;
@@ -503,9 +517,10 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         var buyingBrokerFee = materialCost * (config.BuyingBrokerFeePercent / 100m);
         var sellingBrokerFee = productRevenue * (config.SellingBrokerFeePercent / 100m);
         var salesTax = productRevenue * (config.SalesTaxPercent / 100m);
-        var systemCostFee = (decimal)costIndex * productRevenue;
+        var systemCostFee = estimatedItemValue * (decimal)costIndex;
+        var facilityTax = estimatedItemValue * (config.FacilityTaxPercent / 100m);
 
-        var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee;
+        var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee - facilityTax;
         var productionTimeSeconds = activity.BaseTime * (1.0 - te / 100.0);
 
         return productionTimeSeconds > 0 ? grossProfit / (decimal)(productionTimeSeconds / 3600.0) : 0m;
@@ -542,6 +557,35 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         }
 
         return snapshots;
+    }
+
+    private async Task<Dictionary<int, decimal>> GetAdjustedPricesAsync(CancellationToken cancellationToken)
+    {
+        const string cacheKey = "esi:adjustedprices";
+        if (_cache.TryGetValue(cacheKey, out Dictionary<int, decimal>? cached) && cached != null)
+            return cached;
+
+        try
+        {
+            var prices = await _apiClient.Markets.Prices.GetAsync(cancellationToken: cancellationToken);
+            if (prices == null)
+                return new Dictionary<int, decimal>();
+
+            var result = new Dictionary<int, decimal>();
+            foreach (var p in prices)
+            {
+                if (p.TypeId.HasValue && p.AdjustedPrice.HasValue)
+                    result[(int)p.TypeId.Value] = (decimal)p.AdjustedPrice.Value;
+            }
+
+            _cache.Set(cacheKey, result, CostIndexCacheDuration);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch adjusted prices");
+            return new Dictionary<int, decimal>();
+        }
     }
 
     private async Task<double> GetManufacturingCostIndexAsync(
@@ -706,6 +750,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             SellingBrokerFee: 0,
             SalesTax: 0,
             SystemCostFee: 0,
+            FacilityTax: 0,
             GrossProfit: 0,
             ProfitMarginPercent: 0,
             ProductionTimeSeconds: 0,

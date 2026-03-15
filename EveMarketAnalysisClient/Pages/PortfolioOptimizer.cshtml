@@ -70,6 +70,10 @@ else
                     <input type="number" id="sales-tax" class="form-control" value="3.6" min="0" max="100" step="0.1" />
                 </div>
                 <div class="col-md-2">
+                    <label for="facility-tax" class="form-label">Facility Tax %</label>
+                    <input type="number" id="facility-tax" class="form-control" value="2.5" min="0" max="100" step="0.1" />
+                </div>
+                <div class="col-md-2">
                     <label for="min-isk" class="form-label">Min ISK/hr</label>
                     <input type="number" id="min-isk" class="form-control" value="25000000" min="0" step="1000000" />
                 </div>
@@ -207,6 +211,7 @@ else
                     if (config.buyingBrokerFee != null) setVal('buy-broker', config.buyingBrokerFee);
                     if (config.sellingBrokerFee != null) setVal('sell-broker', config.sellingBrokerFee);
                     if (config.salesTax != null) setVal('sales-tax', config.salesTax);
+                    if (config.facilityTax != null) setVal('facility-tax', config.facilityTax);
                     if (config.minIskPerHour != null) setVal('min-isk', config.minIskPerHour);
                     if (config.dailyIncomeGoal != null) setVal('daily-goal', config.dailyIncomeGoal);
                     if (config.phaseOverride) phaseOverride = config.phaseOverride;
@@ -223,6 +228,7 @@ else
                     buyingBrokerFee: getVal('buy-broker'),
                     sellingBrokerFee: getVal('sell-broker'),
                     salesTax: getVal('sales-tax'),
+                    facilityTax: getVal('facility-tax'),
                     minIskPerHour: getVal('min-isk'),
                     dailyIncomeGoal: getVal('daily-goal'),
                     phaseOverride: phaseOverride
@@ -320,6 +326,7 @@ else
                     + '&buyingBrokerFee=' + getVal('buy-broker')
                     + '&sellingBrokerFee=' + getVal('sell-broker')
                     + '&salesTax=' + getVal('sales-tax')
+                    + '&facilityTax=' + getVal('facility-tax')
                     + '&minIskPerHour=' + getVal('min-isk')
                     + '&dailyIncomeGoal=' + getVal('daily-goal')
                     + '&manufacturingSlots=' + getVal('mfg-slots');

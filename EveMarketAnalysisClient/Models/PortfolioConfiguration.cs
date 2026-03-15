@@ -9,6 +9,7 @@ public record PortfolioConfiguration(
     decimal BuyingBrokerFeePercent = 3.0m,
     decimal SellingBrokerFeePercent = 3.0m,
     decimal SalesTaxPercent = 3.6m,
+    decimal FacilityTaxPercent = 2.5m,
     decimal MinIskPerHour = 25_000_000m,
     decimal DailyIncomeGoal = 750_000_000m,
     int ManufacturingSlots = 11,
