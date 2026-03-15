@@ -4,6 +4,7 @@
 @attribute [Authorize]
 @{
     ViewData["Title"] = "Production Planner";
+    ViewData["ContainerClass"] = "container-fluid";
 }
 
 <h2>Production Planner</h2>
@@ -18,9 +19,9 @@ else
 {
     <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
 
-    <div class="row" style="min-height: 70vh;">
+    <div class="d-flex gap-3 justify-content-center" style="min-height: 70vh;">
         <!-- Left Panel: Blueprint Selection -->
-        <div class="col-md-5">
+        <div style="min-width: 340px; max-width: 400px; flex-shrink: 0;">
             <div class="card bg-dark border-secondary">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong>Blueprints</strong>
@@ -45,7 +46,7 @@ else
         </div>
 
         <!-- Right Panel: Shopping List -->
-        <div class="col-md-7">
+        <div style="flex: 0 1 auto; min-width: 0;">
             <div class="card bg-dark border-secondary">
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <strong>Shopping List</strong>
@@ -69,8 +70,8 @@ else
                         <div class="spinner-border spinner-border-sm text-light" role="status"></div>
                         <span class="ms-2">Generating shopping list...</span>
                     </div>
-                    <div id="shopping-list-section" class="d-none">
-                        <table class="table table-sm mb-0">
+                    <div id="shopping-list-section" class="d-none table-responsive">
+                        <table class="table table-sm mb-0" style="white-space: nowrap;">
                             <thead>
                                 <tr>
                                     <th style="width:20px"></th>
