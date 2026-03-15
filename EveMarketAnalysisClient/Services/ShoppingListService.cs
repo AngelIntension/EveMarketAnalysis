@@ -156,7 +156,7 @@ public class ShoppingListService : IShoppingListService
 
         foreach (var tree in trees)
         {
-            CollectLeafNodes(tree, tree.SourceBlueprintTypeId, string.Empty, grouped);
+            CollectLeafNodes(tree, tree.SourceBlueprintTypeId, tree.TypeName, grouped);
         }
 
         return grouped.Select(kvp => new ShoppingListItem(

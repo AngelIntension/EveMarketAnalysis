@@ -345,7 +345,7 @@ else
                     }
                     for (var j = 0; j < groupItems.length; j++) {
                         var item = groupItems[j];
-                        var hasSources = item.sources && item.sources.length > 1;
+                        var hasSources = item.sources && item.sources.length > 0;
                         html += '<tr data-typeid="' + item.typeId + '">';
                         html += '<td>';
                         if (hasSources) {
