@@ -46,8 +46,14 @@ else
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label for="mfg-system" class="form-label">Mfg System ID</label>
-                    <input type="number" id="mfg-system" class="form-control" value="30000142" />
+                    <label for="mfg-system" class="form-label">Manufacturing System</label>
+                    <select id="mfg-system" class="form-select">
+                        <option value="30000142">Jita (The Forge)</option>
+                        <option value="30002187">Amarr (Domain)</option>
+                        <option value="30002659">Dodixie (Sinq Laison)</option>
+                        <option value="30002053">Hek (Metropolis)</option>
+                        <option value="30002510">Rens (Heimatar)</option>
+                    </select>
                 </div>
                 <div class="col-md-2">
                     <label for="mfg-slots" class="form-label">Mfg Slots</label>
@@ -208,7 +214,7 @@ else
                     var config = JSON.parse(saved);
                     if (config.procurementRegionId) setSelect('procurement-region', config.procurementRegionId);
                     if (config.sellingRegionId) setSelect('selling-region', config.sellingRegionId);
-                    if (config.manufacturingSystemId) setVal('mfg-system', config.manufacturingSystemId);
+                    if (config.manufacturingSystemId) setSelect('mfg-system', config.manufacturingSystemId);
                     if (config.manufacturingSlots) setVal('mfg-slots', config.manufacturingSlots);
                     if (config.buyingBrokerFee != null) setVal('buy-broker', config.buyingBrokerFee);
                     if (config.sellingBrokerFee != null) setVal('sell-broker', config.sellingBrokerFee);

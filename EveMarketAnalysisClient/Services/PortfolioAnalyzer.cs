@@ -152,7 +152,27 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         if (simulateNextPhase && currentPhaseNumber < 5)
             currentPhaseNumber++;
 
-        // 11. Generate BPO recommendations
+        // 11. Resolve names for BPO recommendation candidates
+        var recommendationPhase = phases.FirstOrDefault(p => p.PhaseNumber == currentPhaseNumber);
+        if (recommendationPhase != null)
+        {
+            var bpoTypeIds = new HashSet<int>();
+            var ownedTypeIdSet = blueprints.Select(b => b.TypeId).ToHashSet();
+            foreach (var candidateId in recommendationPhase.CandidateTypeIds)
+            {
+                if (!ownedTypeIdSet.Contains(candidateId))
+                {
+                    bpoTypeIds.Add(candidateId);
+                    var act = _blueprintData.GetBlueprintActivity(candidateId);
+                    if (act != null)
+                        bpoTypeIds.Add(act.ProducedTypeId);
+                }
+            }
+            if (bpoTypeIds.Count > 0)
+                await ResolveTypeNamesAsync(bpoTypeIds, cancellationToken);
+        }
+
+        // Generate BPO recommendations
         var bpoRecommendations = await GenerateBpoRecommendationsAsync(
             blueprints, currentPhaseNumber, phases, configuration,
             marketSnapshots, typeNames, costIndex, cancellationToken);
@@ -367,8 +387,9 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             var projectedIskPerHour = CalculateProjectedIskPerHour(
                 activity, 10, 20, config, marketSnapshots, costIndex);
 
-            // NPC seeded price
-            npcPrices.TryGetValue(bpTypeId, out var npcPrice);
+            // NPC seeded price — try blueprint type ID first, then produced type ID
+            if (!npcPrices.TryGetValue(bpTypeId, out var npcPrice) || npcPrice == null)
+                npcPrices.TryGetValue(activity.ProducedTypeId, out npcPrice);
 
             // Region-wide player market price
             MarketSnapshot? bpoSnapshot = null;
