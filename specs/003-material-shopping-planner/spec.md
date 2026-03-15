@@ -118,7 +118,7 @@ As an industrialist reviewing a large aggregated list, I want to expand each mat
 - **FR-013**: System MUST provide "Generate List", "Export CSV", "Copy to Clipboard", and "Clear Selection" action buttons.
 - **FR-014**: System MUST show appropriate loading states during data fetches and an empty state when no blueprints are selected.
 - **FR-015**: System MUST cache blueprint data on page load to avoid redundant fetches during the planning session.
-- **FR-016**: System MUST group materials by category where possible, with totals displayed at the bottom of the shopping list.
+- **FR-016**: System MUST group materials by category (derived from EVE SDE market group data) where possible, with totals displayed at the bottom of the shopping list. Materials without a known category are grouped under "Uncategorized".
 - **FR-017**: Each material row MUST be expandable to show which blueprint(s) require it and their individual quantity contributions.
 
 ### Key Entities
@@ -153,7 +153,7 @@ As an industrialist reviewing a large aggregated list, I want to expand each mat
 - Blueprint material requirements (bill of materials) are sourced from the EVE Online Static Data Export (SDE), bundled as a local dataset. The SDE is the canonical CCP-maintained source for manufacturing inputs, avoiding runtime dependency on third-party APIs.
 - The existing market data service provides per-item pricing by region and can be reused for cost estimation.
 - The region list for cost estimation will use well-known trade hub regions (The Forge, Domain, Sinq Laison, Metropolis, Heimatar) rather than all 60+ regions, to keep the UX simple.
-- ME formula follows EVE Online's standard: `max(runs, ceil(runs * base_quantity * (1 - ME/100)))` for each material.
+- ME formula follows the per-run approach used by the existing codebase: per-run adjusted quantity = `max(1, ceil(base_quantity * (1 - ME/100)))`, then total = `adjusted_quantity * runs`. This matches the `ProfitabilityCalculator` implementation.
 - Users will typically select fewer than 20 blueprints per batch; performance targets are based on this assumption.
 - Blueprint data is fetched once on page load and cached for the duration of the session — users do not need real-time updates to their blueprint inventory while planning.
 
