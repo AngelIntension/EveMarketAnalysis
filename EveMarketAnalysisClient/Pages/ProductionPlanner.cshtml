@@ -504,13 +504,13 @@ else
                 var items = currentShoppingList.items;
                 var hasCosts = currentCosts && currentCosts.costs && currentCosts.costs.length > 0;
                 var lines = [];
-                var header = 'Material Name,Quantity,Category';
+                var header = 'Material Name,Quantity';
                 if (hasCosts) header += ',Sell Price,Sell Total,Buy Price,Buy Total,Savings,Volume (m³),Total Volume (m³)';
                 lines.push(header);
 
                 for (var i = 0; i < items.length; i++) {
                     var item = items[i];
-                    var line = csvEscape(item.typeName) + ',' + item.totalQuantity + ',' + csvEscape(item.category || '');
+                    var line = csvEscape(item.typeName) + ',' + item.totalQuantity;
                     if (hasCosts) {
                         var cost = currentCosts.costs.find(function (c) { return c.typeId === item.typeId; });
                         var sellPrice = cost && cost.sellPrice != null ? cost.sellPrice.toFixed(2) : 'N/A';
