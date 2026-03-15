@@ -11,4 +11,5 @@ public interface IEsiCharacterClient
     Task<Dictionary<int, (string GroupName, int GroupId)>> GetSkillGroupMappingAsync(CancellationToken cancellationToken = default);
     Task<ImmutableArray<IndustryJob>> GetIndustryJobsAsync(int characterId, CancellationToken cancellationToken = default);
     Task<int> GetBlueprintCountAsync(int characterId, CancellationToken cancellationToken = default);
+    Task<ImmutableArray<CharacterBlueprint>> GetCharacterBlueprintsAsync(int characterId, CancellationToken cancellationToken = default);
 }

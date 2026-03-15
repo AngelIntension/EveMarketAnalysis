@@ -245,4 +245,42 @@ public class EsiCharacterClient : IEsiCharacterClient
         var blueprints = await _apiClient.Characters[characterId].Blueprints.GetAsync(cancellationToken: cancellationToken);
         return blueprints?.Count ?? 0;
     }
+
+    public async Task<ImmutableArray<CharacterBlueprint>> GetCharacterBlueprintsAsync(
+        int characterId, CancellationToken cancellationToken = default)
+    {
+        var blueprints = await _apiClient.Characters[characterId].Blueprints.GetAsync(cancellationToken: cancellationToken);
+        if (blueprints == null || blueprints.Count == 0)
+            return ImmutableArray<CharacterBlueprint>.Empty;
+
+        var typeIds = blueprints
+            .Select(b => (int)(b.TypeId ?? 0))
+            .Where(id => id != 0)
+            .Distinct()
+            .ToList();
+
+        var names = await ResolveNamesAsync(typeIds, cancellationToken);
+
+        return blueprints
+            .Select(b =>
+            {
+                var typeId = (int)(b.TypeId ?? 0);
+                var typeName = names.TryGetValue(typeId, out var name)
+                    ? name
+                    : $"Unknown ({typeId})";
+                var quantity = (int)(b.Quantity ?? 0);
+                var isCopy = quantity == -2;
+                var runs = (int)(b.Runs ?? -1);
+
+                return new CharacterBlueprint(
+                    ItemId: b.ItemId ?? 0,
+                    TypeId: typeId,
+                    TypeName: typeName,
+                    MaterialEfficiency: (int)(b.MaterialEfficiency ?? 0),
+                    TimeEfficiency: (int)(b.TimeEfficiency ?? 0),
+                    Runs: runs,
+                    IsCopy: isCopy);
+            })
+            .ToImmutableArray();
+    }
 }
