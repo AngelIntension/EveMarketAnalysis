@@ -60,6 +60,9 @@ builder.Services.AddSingleton<IBlueprintDataService, BlueprintDataService>();
 builder.Services.AddScoped<IEsiMarketClient, EsiMarketClient>();
 builder.Services.AddScoped<IProfitabilityCalculator, ProfitabilityCalculator>();
 
+// Shopping list planner services
+builder.Services.AddScoped<IShoppingListService, ShoppingListService>();
+
 // Add services to the container.
 builder.Services.AddRazorPages();
 

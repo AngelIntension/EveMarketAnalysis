@@ -1,0 +1,682 @@
+@page
+@model EveMarketAnalysisClient.Pages.ProductionPlannerModel
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@{
+    ViewData["Title"] = "Production Planner";
+}
+
+<h2>Production Planner</h2>
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        <p>@Model.ErrorMessage</p>
+    </div>
+}
+else
+{
+    <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
+
+    <div class="row" style="min-height: 70vh;">
+        <!-- Left Panel: Blueprint Selection -->
+        <div class="col-md-5">
+            <div class="card bg-dark border-secondary">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Blueprints</strong>
+                    <span id="bp-count" class="badge bg-secondary">0</span>
+                </div>
+                <div class="card-body p-2">
+                    <input type="text" id="bp-search" class="form-control form-control-sm mb-2" placeholder="Search blueprints..." />
+                    <div id="blueprint-list" style="max-height: 55vh; overflow-y: auto;">
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <div class="p-2 border-bottom border-secondary">
+                                <span class="skeleton skeleton-text" style="width:180px"></span>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button id="generate-btn" class="btn btn-primary btn-sm w-100" type="button" disabled>Generate Shopping List</button>
+                    <button id="clear-btn" class="btn btn-outline-secondary btn-sm w-100 mt-1" type="button" disabled>Clear Selection</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Shopping List -->
+        <div class="col-md-7">
+            <div class="card bg-dark border-secondary">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <strong>Shopping List</strong>
+                    <div class="d-flex align-items-center gap-2">
+                        <select id="region-select" class="form-select form-select-sm" style="width:auto">
+                            <option value="10000002" selected>The Forge (Jita)</option>
+                            <option value="10000043">Domain (Amarr)</option>
+                            <option value="10000032">Sinq Laison (Dodixie)</option>
+                            <option value="10000042">Metropolis (Hek)</option>
+                            <option value="10000030">Heimatar (Rens)</option>
+                        </select>
+                        <button id="export-csv-btn" class="btn btn-outline-light btn-sm" type="button" disabled>Export CSV</button>
+                        <button id="copy-clipboard-btn" class="btn btn-outline-light btn-sm" type="button" disabled>Copy</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="shopping-list-empty" class="text-center text-muted p-4">
+                        <p>Select blueprints and click "Generate Shopping List" to see materials needed.</p>
+                    </div>
+                    <div id="shopping-list-loading" class="d-none p-3 text-center">
+                        <div class="spinner-border spinner-border-sm text-light" role="status"></div>
+                        <span class="ms-2">Generating shopping list...</span>
+                    </div>
+                    <div id="shopping-list-section" class="d-none">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width:20px"></th>
+                                    <th>Material</th>
+                                    <th class="text-end">Quantity</th>
+                                    <th class="text-end">Sell Price</th>
+                                    <th class="text-end">Sell Total</th>
+                                    <th class="text-end">Buy Price</th>
+                                    <th class="text-end">Buy Total</th>
+                                    <th class="text-end">Savings</th>
+                                    <th class="text-end">Volume (m³)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="shopping-list-body"></tbody>
+                            <tfoot id="shopping-list-footer" class="d-none">
+                                <tr class="fw-bold">
+                                    <td></td>
+                                    <td>Total</td>
+                                    <td id="total-quantity" class="text-end"></td>
+                                    <td></td>
+                                    <td id="total-sell-cost" class="text-end"></td>
+                                    <td></td>
+                                    <td id="total-buy-cost" class="text-end"></td>
+                                    <td id="total-savings" class="text-end"></td>
+                                    <td id="total-volume" class="text-end"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div id="errors-section" class="mt-2 d-none">
+                <div class="alert alert-warning mb-0 py-1 px-2">
+                    <small id="errors-text"></small>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        (function () {
+            var blueprintsUrl = '@Url.Page("/ProductionPlanner", "Blueprints")';
+            var shoppingListUrl = '@Url.Page("/ProductionPlanner", "ShoppingList")';
+            var costsUrl = '@Url.Page("/ProductionPlanner", "Costs")';
+            if (!blueprintsUrl) return;
+
+            var allBlueprints = [];
+            var currentShoppingList = null;
+            var currentCosts = null;
+
+            // --- Utility ---
+            function esc(str) {
+                var d = document.createElement('div');
+                d.textContent = str || '';
+                return d.innerHTML;
+            }
+            function formatNumber(n) {
+                return Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+            }
+            function formatIsk(n) {
+                if (n == null) return '<span class="text-muted">—</span>';
+                return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ISK';
+            }
+            function formatVolume(n) {
+                if (n == null || n === 0) return '<span class="text-muted">—</span>';
+                return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m³';
+            }
+
+            // --- Blueprint List ---
+            function fetchBlueprints() {
+                fetch(blueprintsUrl, { credentials: 'same-origin' })
+                    .then(function (res) {
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        if (data.error) { showError(data.error); return; }
+                        allBlueprints = (data.blueprints || []).sort(function (a, b) {
+                            return (a.typeName || '').localeCompare(b.typeName || '');
+                        });
+                        document.getElementById('bp-count').textContent = allBlueprints.length;
+                        renderBlueprints(allBlueprints);
+                    })
+                    .catch(function (err) {
+                        showError('Failed to load blueprints: ' + err.message);
+                        document.getElementById('blueprint-list').innerHTML =
+                            '<div class="text-muted text-center p-3">Failed to load blueprints.</div>';
+                    });
+            }
+
+            function renderBlueprints(blueprints) {
+                var list = document.getElementById('blueprint-list');
+                if (blueprints.length === 0) {
+                    list.innerHTML = '<div class="text-muted text-center p-3">No blueprints found. Acquire blueprints in-game first.</div>';
+                    return;
+                }
+                var html = '';
+                for (var i = 0; i < blueprints.length; i++) {
+                    var bp = blueprints[i];
+                    var bpoLabel = bp.isCopy ? 'BPC' : 'BPO';
+                    var maxRuns = bp.isCopy && bp.runs > 0 ? bp.runs : 999;
+                    html += '<div class="bp-item p-2 border-bottom border-secondary" data-typeid="' + bp.typeId + '" data-name="' + esc(bp.typeName) + '">';
+                    html += '<div class="d-flex align-items-start gap-2">';
+                    html += '<input type="checkbox" class="bp-check form-check-input mt-1" data-typeid="' + bp.typeId + '" />';
+                    html += '<div class="flex-grow-1" style="min-width:0">';
+                    html += '<div class="text-truncate"><small class="fw-bold">' + esc(bp.typeName) + '</small></div>';
+                    html += '<div class="d-flex gap-2 align-items-center flex-wrap">';
+                    html += '<small class="text-muted">ME ' + bp.materialEfficiency + ' / TE ' + bp.timeEfficiency + '</small>';
+                    html += '<span class="badge bg-secondary" style="font-size:0.65em">' + bpoLabel + '</span>';
+                    html += '</div>';
+                    html += '<div class="d-flex gap-2 align-items-center mt-1">';
+                    html += '<label class="text-muted" style="font-size:0.75em">Runs:</label>';
+                    html += '<input type="number" class="bp-runs form-control form-control-sm" value="1" min="1" max="' + maxRuns + '" style="width:70px;font-size:0.8em" data-typeid="' + bp.typeId + '" />';
+                    html += '<label class="form-check-label d-flex align-items-center gap-1" style="font-size:0.75em">';
+                    html += '<input type="checkbox" class="bp-produce form-check-input" style="width:14px;height:14px" data-typeid="' + bp.typeId + '" />';
+                    html += '<span class="text-muted">Produce Components</span>';
+                    html += '</label>';
+                    html += '</div>';
+                    html += '</div>';
+                    html += '</div>';
+                    html += '</div>';
+                }
+                list.innerHTML = html;
+                updateButtonStates();
+            }
+
+            // --- Search Filter ---
+            document.getElementById('bp-search').addEventListener('input', function () {
+                var query = this.value.toLowerCase();
+                var items = document.querySelectorAll('.bp-item');
+                items.forEach(function (item) {
+                    var name = (item.getAttribute('data-name') || '').toLowerCase();
+                    item.style.display = name.includes(query) ? '' : 'none';
+                });
+            });
+
+            // --- Selection State ---
+            function getSelectedBlueprints() {
+                var selected = [];
+                document.querySelectorAll('.bp-check:checked').forEach(function (cb) {
+                    var typeId = parseInt(cb.getAttribute('data-typeid'));
+                    var runsInput = document.querySelector('.bp-runs[data-typeid="' + typeId + '"]');
+                    var produceInput = document.querySelector('.bp-produce[data-typeid="' + typeId + '"]');
+                    selected.push({
+                        blueprintTypeId: typeId,
+                        runs: parseInt(runsInput ? runsInput.value : 1) || 1,
+                        produceComponents: produceInput ? produceInput.checked : false
+                    });
+                });
+                return selected;
+            }
+
+            function updateButtonStates() {
+                var hasSelection = document.querySelectorAll('.bp-check:checked').length > 0;
+                document.getElementById('generate-btn').disabled = !hasSelection;
+                document.getElementById('clear-btn').disabled = !hasSelection;
+            }
+
+            document.getElementById('blueprint-list').addEventListener('change', function (e) {
+                if (e.target.classList.contains('bp-check')) {
+                    updateButtonStates();
+                }
+                // BPC run validation
+                if (e.target.classList.contains('bp-runs')) {
+                    var max = parseInt(e.target.max);
+                    var val = parseInt(e.target.value);
+                    if (max > 0 && val > max) {
+                        e.target.value = max;
+                    }
+                    if (val < 1) e.target.value = 1;
+                }
+            });
+
+            // --- Generate Shopping List ---
+            document.getElementById('generate-btn').addEventListener('click', function () {
+                var selections = getSelectedBlueprints();
+                if (selections.length === 0) return;
+
+                showShoppingListLoading();
+
+                var url = shoppingListUrl + '&selections=' + encodeURIComponent(JSON.stringify(selections));
+                fetch(url, { credentials: 'same-origin' })
+                    .then(function (res) {
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        if (data.error) { showError(data.error); hideShoppingListLoading(); return; }
+                        currentShoppingList = data;
+                        currentCosts = null;
+                        renderShoppingList(data);
+                        fetchCosts();
+                    })
+                    .catch(function (err) {
+                        showError('Failed to generate shopping list: ' + err.message);
+                        hideShoppingListLoading();
+                    });
+            });
+
+            // --- Clear Selection ---
+            document.getElementById('clear-btn').addEventListener('click', function () {
+                document.querySelectorAll('.bp-check:checked').forEach(function (cb) { cb.checked = false; });
+                updateButtonStates();
+                currentShoppingList = null;
+                currentCosts = null;
+                showEmptyState();
+            });
+
+            // --- Fetch Costs ---
+            function fetchCosts() {
+                if (!currentShoppingList || !currentShoppingList.items || currentShoppingList.items.length === 0) return;
+
+                var typeIds = currentShoppingList.items.map(function (item) { return item.typeId; }).join(',');
+                var regionId = document.getElementById('region-select').value;
+                var url = costsUrl + '&regionId=' + regionId + '&typeIds=' + typeIds;
+
+                // Show loading indicators on price cells
+                document.querySelectorAll('.sell-price-cell, .sell-total-cell, .buy-price-cell, .buy-total-cell, .savings-cell').forEach(function (cell) {
+                    cell.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:12px;height:12px"></span>';
+                });
+
+                fetch(url, { credentials: 'same-origin' })
+                    .then(function (res) {
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        if (data.error) { showError(data.error); return; }
+                        currentCosts = data;
+                        applyCosts(data);
+                    })
+                    .catch(function (err) {
+                        showError('Failed to fetch costs: ' + err.message);
+                    });
+            }
+
+            document.getElementById('region-select').addEventListener('change', function () {
+                if (currentShoppingList) fetchCosts();
+            });
+
+            // --- Render Shopping List ---
+            function renderShoppingList(data) {
+                document.getElementById('shopping-list-empty').classList.add('d-none');
+                document.getElementById('shopping-list-loading').classList.add('d-none');
+                document.getElementById('shopping-list-section').classList.remove('d-none');
+                document.getElementById('export-csv-btn').disabled = false;
+                document.getElementById('copy-clipboard-btn').disabled = false;
+
+                var items = data.items || [];
+
+                // Group by category
+                var groups = {};
+                var groupOrder = [];
+                for (var i = 0; i < items.length; i++) {
+                    var cat = items[i].category || 'Uncategorized';
+                    if (!groups[cat]) {
+                        groups[cat] = [];
+                        groupOrder.push(cat);
+                    }
+                    groups[cat].push(items[i]);
+                }
+
+                var html = '';
+                for (var g = 0; g < groupOrder.length; g++) {
+                    var category = groupOrder[g];
+                    var groupItems = groups[category];
+                    if (groupOrder.length > 1 || category !== 'Uncategorized') {
+                        html += '<tr class="table-secondary"><td colspan="9"><strong>' + esc(category || 'Uncategorized') + '</strong></td></tr>';
+                    }
+                    for (var j = 0; j < groupItems.length; j++) {
+                        var item = groupItems[j];
+                        var hasSources = item.sources && item.sources.length > 1;
+                        html += '<tr data-typeid="' + item.typeId + '">';
+                        html += '<td>';
+                        if (hasSources) {
+                            html += '<span class="source-toggle" style="cursor:pointer;font-size:0.8em" data-typeid="' + item.typeId + '">&#9654;</span>';
+                        }
+                        html += '</td>';
+                        html += '<td>' + esc(item.typeName) + '</td>';
+                        html += '<td class="text-end">' + formatNumber(item.totalQuantity) + '</td>';
+                        html += '<td class="text-end sell-price-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '<td class="text-end sell-total-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '<td class="text-end buy-price-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '<td class="text-end buy-total-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '<td class="text-end savings-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '<td class="text-end volume-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '</tr>';
+                        if (hasSources) {
+                            html += '<tr class="source-detail d-none" data-parent="' + item.typeId + '">';
+                            html += '<td></td>';
+                            html += '<td colspan="8"><div class="ps-3">';
+                            for (var s = 0; s < item.sources.length; s++) {
+                                var src = item.sources[s];
+                                html += '<div class="text-muted" style="font-size:0.8em">' + esc(src.blueprintName) + ': ' + formatNumber(src.quantity) + '</div>';
+                            }
+                            html += '</div></td>';
+                            html += '</tr>';
+                        }
+                    }
+                }
+
+                document.getElementById('shopping-list-body').innerHTML = html;
+
+                // Totals
+                document.getElementById('shopping-list-footer').classList.remove('d-none');
+                document.getElementById('total-quantity').textContent = formatNumber(items.reduce(function (sum, i) { return sum + i.totalQuantity; }, 0));
+                document.getElementById('total-volume').innerHTML = '<span class="text-muted">—</span>';
+                document.getElementById('total-sell-cost').innerHTML = '<span class="text-muted">—</span>';
+                document.getElementById('total-buy-cost').innerHTML = '<span class="text-muted">—</span>';
+                document.getElementById('total-savings').innerHTML = '<span class="text-muted">—</span>';
+
+                // Errors
+                if (data.errors && data.errors.length > 0) {
+                    document.getElementById('errors-section').classList.remove('d-none');
+                    document.getElementById('errors-text').textContent = data.errors.join('; ');
+                } else {
+                    document.getElementById('errors-section').classList.add('d-none');
+                }
+
+                // Source toggle handlers
+                document.querySelectorAll('.source-toggle').forEach(function (toggle) {
+                    toggle.addEventListener('click', function () {
+                        var typeId = toggle.getAttribute('data-typeid');
+                        var detail = document.querySelector('.source-detail[data-parent="' + typeId + '"]');
+                        if (detail) {
+                            detail.classList.toggle('d-none');
+                            toggle.innerHTML = detail.classList.contains('d-none') ? '&#9654;' : '&#9660;';
+                        }
+                    });
+                });
+
+                // Handle 401/redirect for session expiry
+                saveSelectionState();
+            }
+
+            // --- Apply Costs ---
+            function applyCosts(costData) {
+                if (!costData || !costData.costs) return;
+
+                var totalSellCost = 0;
+                var totalBuyCost = 0;
+                var totalVolume = 0;
+                var hasSell = false;
+                var hasBuy = false;
+                var na = '<span class="text-muted">N/A</span>';
+
+                for (var i = 0; i < costData.costs.length; i++) {
+                    var cost = costData.costs[i];
+                    var sellPriceCell = document.querySelector('.sell-price-cell[data-typeid="' + cost.typeId + '"]');
+                    var sellTotalCell = document.querySelector('.sell-total-cell[data-typeid="' + cost.typeId + '"]');
+                    var buyPriceCell = document.querySelector('.buy-price-cell[data-typeid="' + cost.typeId + '"]');
+                    var buyTotalCell = document.querySelector('.buy-total-cell[data-typeid="' + cost.typeId + '"]');
+                    var savingsCell = document.querySelector('.savings-cell[data-typeid="' + cost.typeId + '"]');
+                    var volumeCell = document.querySelector('.volume-cell[data-typeid="' + cost.typeId + '"]');
+
+                    var item = currentShoppingList.items.find(function (it) { return it.typeId === cost.typeId; });
+                    if (!item) continue;
+
+                    var qty = item.totalQuantity;
+                    var itemVolume = cost.volume * qty;
+                    if (volumeCell) volumeCell.innerHTML = formatVolume(itemVolume);
+                    totalVolume += itemVolume;
+
+                    var sellTotal = null;
+                    var buyTotal = null;
+
+                    if (cost.sellPrice != null) {
+                        if (sellPriceCell) sellPriceCell.innerHTML = formatIsk(cost.sellPrice);
+                        sellTotal = cost.sellPrice * qty;
+                        if (sellTotalCell) sellTotalCell.innerHTML = formatIsk(sellTotal);
+                        totalSellCost += sellTotal;
+                        hasSell = true;
+                    } else {
+                        if (sellPriceCell) sellPriceCell.innerHTML = na;
+                        if (sellTotalCell) sellTotalCell.innerHTML = na;
+                    }
+
+                    if (cost.buyPrice != null) {
+                        if (buyPriceCell) buyPriceCell.innerHTML = formatIsk(cost.buyPrice);
+                        buyTotal = cost.buyPrice * qty;
+                        if (buyTotalCell) buyTotalCell.innerHTML = formatIsk(buyTotal);
+                        totalBuyCost += buyTotal;
+                        hasBuy = true;
+                    } else {
+                        if (buyPriceCell) buyPriceCell.innerHTML = na;
+                        if (buyTotalCell) buyTotalCell.innerHTML = na;
+                    }
+
+                    if (sellTotal != null && buyTotal != null) {
+                        var savings = sellTotal - buyTotal;
+                        savingsCell.innerHTML = '<span class="' + (savings > 0 ? 'text-success' : 'text-muted') + '">' + formatIsk(savings) + '</span>';
+                    } else {
+                        if (savingsCell) savingsCell.innerHTML = na;
+                    }
+                }
+
+                document.getElementById('total-volume').innerHTML = formatVolume(totalVolume);
+                document.getElementById('total-sell-cost').innerHTML = hasSell ? formatIsk(totalSellCost) : '<span class="text-muted">—</span>';
+                document.getElementById('total-buy-cost').innerHTML = hasBuy ? formatIsk(totalBuyCost) : '<span class="text-muted">—</span>';
+                if (hasSell && hasBuy) {
+                    var totalSavings = totalSellCost - totalBuyCost;
+                    document.getElementById('total-savings').innerHTML = '<span class="' + (totalSavings > 0 ? 'text-success' : 'text-muted') + '">' + formatIsk(totalSavings) + '</span>';
+                } else {
+                    document.getElementById('total-savings').innerHTML = '<span class="text-muted">—</span>';
+                }
+            }
+
+            // --- Export/Copy ---
+            document.getElementById('export-csv-btn').addEventListener('click', function () {
+                if (!currentShoppingList) return;
+                var csv = generateCsv();
+                var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                var link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'shopping_list.csv';
+                link.click();
+            });
+
+            document.getElementById('copy-clipboard-btn').addEventListener('click', function () {
+                if (!currentShoppingList) return;
+                var text = generateClipboardText();
+                navigator.clipboard.writeText(text).then(function () {
+                    var btn = document.getElementById('copy-clipboard-btn');
+                    var orig = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    setTimeout(function () { btn.textContent = orig; }, 1500);
+                });
+            });
+
+            function generateCsv() {
+                var items = currentShoppingList.items;
+                var hasCosts = currentCosts && currentCosts.costs && currentCosts.costs.length > 0;
+                var lines = [];
+                var header = 'Material Name,Quantity';
+                if (hasCosts) header += ',Sell Price,Sell Total,Buy Price,Buy Total,Savings,Volume (m³),Total Volume (m³)';
+                lines.push(header);
+
+                for (var i = 0; i < items.length; i++) {
+                    var item = items[i];
+                    var line = csvEscape(item.typeName) + ',' + item.totalQuantity;
+                    if (hasCosts) {
+                        var cost = currentCosts.costs.find(function (c) { return c.typeId === item.typeId; });
+                        var sellPrice = cost && cost.sellPrice != null ? cost.sellPrice.toFixed(2) : 'N/A';
+                        var sellTotal = cost && cost.sellPrice != null ? (cost.sellPrice * item.totalQuantity).toFixed(2) : 'N/A';
+                        var buyPrice = cost && cost.buyPrice != null ? cost.buyPrice.toFixed(2) : 'N/A';
+                        var buyTotal = cost && cost.buyPrice != null ? (cost.buyPrice * item.totalQuantity).toFixed(2) : 'N/A';
+                        var savings = cost && cost.sellPrice != null && cost.buyPrice != null ? ((cost.sellPrice - cost.buyPrice) * item.totalQuantity).toFixed(2) : 'N/A';
+                        var vol = cost ? cost.volume.toFixed(2) : '0.00';
+                        var totalVol = cost ? (cost.volume * item.totalQuantity).toFixed(2) : '0.00';
+                        line += ',' + sellPrice + ',' + sellTotal + ',' + buyPrice + ',' + buyTotal + ',' + savings + ',' + vol + ',' + totalVol;
+                    }
+                    lines.push(line);
+                }
+                return lines.join('\n');
+            }
+
+            function generateClipboardText() {
+                var items = currentShoppingList.items;
+                if (!items || items.length === 0) return '';
+
+                function fmtVol(v) { return v != null && v > 0 ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m³' : '—'; }
+
+                // --- Build summary table ---
+                var selected = getSelectedBlueprints();
+                var buildRows = [];
+                for (var s = 0; s < selected.length; s++) {
+                    var sel = selected[s];
+                    var bp = allBlueprints.find(function (b) { return b.typeId === sel.blueprintTypeId; });
+                    if (bp) buildRows.push({ name: bp.typeName || 'Unknown', runs: formatNumber(sel.runs) });
+                }
+
+                var buildNameWidth = 'Blueprint'.length;
+                var buildRunsWidth = 'Runs'.length;
+                for (var i = 0; i < buildRows.length; i++) {
+                    buildNameWidth = Math.max(buildNameWidth, buildRows[i].name.length);
+                    buildRunsWidth = Math.max(buildRunsWidth, buildRows[i].runs.length);
+                }
+
+                function pad(str, width) { return str + ' '.repeat(Math.max(0, width - str.length)); }
+                function rpad(str, width) { return ' '.repeat(Math.max(0, width - str.length)) + str; }
+
+                var lines = [];
+                lines.push('BUILD PLAN');
+                lines.push(pad('Blueprint', buildNameWidth) + '  ' + rpad('Runs', buildRunsWidth));
+                lines.push('-'.repeat(buildNameWidth) + '  ' + '-'.repeat(buildRunsWidth));
+                for (var i = 0; i < buildRows.length; i++) {
+                    lines.push(pad(buildRows[i].name, buildNameWidth) + '  ' + rpad(buildRows[i].runs, buildRunsWidth));
+                }
+                lines.push('');
+
+                // Build rows data first to measure widths
+                var rows = [];
+                var totalVolume = 0;
+                for (var i = 0; i < items.length; i++) {
+                    var item = items[i];
+                    var vol = 0;
+                    if (currentCosts && currentCosts.costs) {
+                        var cost = currentCosts.costs.find(function (c) { return c.typeId === item.typeId; });
+                        if (cost) vol = cost.volume * item.totalQuantity;
+                    }
+                    totalVolume += vol;
+                    rows.push({ name: item.typeName || '', qty: formatNumber(item.totalQuantity), vol: fmtVol(vol) });
+                }
+
+                var totalRow = { name: 'Total', qty: '', vol: fmtVol(totalVolume) };
+
+                var nameWidth = 'Material'.length;
+                var qtyWidth = 'Quantity'.length;
+                var volWidth = 'Volume'.length;
+                var allRows = rows.concat([totalRow]);
+                for (var i = 0; i < allRows.length; i++) {
+                    nameWidth = Math.max(nameWidth, allRows[i].name.length);
+                    qtyWidth = Math.max(qtyWidth, allRows[i].qty.length);
+                    volWidth = Math.max(volWidth, allRows[i].vol.length);
+                }
+
+                lines.push('MATERIALS');
+                lines.push(pad('Material', nameWidth) + '  ' + rpad('Quantity', qtyWidth) + '  ' + rpad('Volume', volWidth));
+                lines.push('-'.repeat(nameWidth) + '  ' + '-'.repeat(qtyWidth) + '  ' + '-'.repeat(volWidth));
+
+                for (var i = 0; i < rows.length; i++) {
+                    lines.push(pad(rows[i].name, nameWidth) + '  ' + rpad(rows[i].qty, qtyWidth) + '  ' + rpad(rows[i].vol, volWidth));
+                }
+
+                lines.push('-'.repeat(nameWidth) + '  ' + '-'.repeat(qtyWidth) + '  ' + '-'.repeat(volWidth));
+                lines.push(pad(totalRow.name, nameWidth) + '  ' + rpad(totalRow.qty, qtyWidth) + '  ' + rpad(totalRow.vol, volWidth));
+
+                return lines.join('\n');
+            }
+
+            function csvEscape(val) {
+                if (val && (val.indexOf(',') >= 0 || val.indexOf('"') >= 0 || val.indexOf('\n') >= 0)) {
+                    return '"' + val.replace(/"/g, '""') + '"';
+                }
+                return val || '';
+            }
+
+            // --- UI Helpers ---
+            function showError(msg) {
+                var el = document.getElementById('error-alert');
+                el.textContent = msg;
+                el.classList.remove('d-none');
+            }
+
+            function showShoppingListLoading() {
+                document.getElementById('shopping-list-empty').classList.add('d-none');
+                document.getElementById('shopping-list-section').classList.add('d-none');
+                document.getElementById('shopping-list-loading').classList.remove('d-none');
+                document.getElementById('error-alert').classList.add('d-none');
+            }
+
+            function hideShoppingListLoading() {
+                document.getElementById('shopping-list-loading').classList.add('d-none');
+            }
+
+            function showEmptyState() {
+                document.getElementById('shopping-list-empty').classList.remove('d-none');
+                document.getElementById('shopping-list-section').classList.add('d-none');
+                document.getElementById('shopping-list-loading').classList.add('d-none');
+                document.getElementById('shopping-list-footer').classList.add('d-none');
+                document.getElementById('errors-section').classList.add('d-none');
+                document.getElementById('export-csv-btn').disabled = true;
+                document.getElementById('copy-clipboard-btn').disabled = true;
+            }
+
+            // --- Session Expiry Handling ---
+            function saveSelectionState() {
+                try {
+                    var selections = getSelectedBlueprints();
+                    sessionStorage.setItem('pp-selections', JSON.stringify(selections));
+                } catch (e) { /* ignore */ }
+            }
+
+            function restoreSelectionState() {
+                try {
+                    var saved = sessionStorage.getItem('pp-selections');
+                    if (saved) {
+                        var selections = JSON.parse(saved);
+                        // Will be applied after blueprints load
+                        return selections;
+                    }
+                } catch (e) { /* ignore */ }
+                return null;
+            }
+
+            // Wrap fetch to detect 401/redirect
+            var originalFetch = window.fetch;
+            window.fetch = function (url, opts) {
+                return originalFetch(url, opts).then(function (response) {
+                    if (response.redirected || response.status === 401) {
+                        saveSelectionState();
+                        showError('Your session has expired. Please log in again.');
+                        var loginLink = document.createElement('a');
+                        loginLink.href = '/Auth/Login';
+                        loginLink.textContent = 'Click here to log in';
+                        loginLink.className = 'btn btn-sm btn-outline-light ms-2';
+                        document.getElementById('error-alert').appendChild(loginLink);
+                    }
+                    return response;
+                });
+            };
+
+            // --- Init ---
+            fetchBlueprints();
+        })();
+    </script>
+}
