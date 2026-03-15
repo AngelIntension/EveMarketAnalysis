@@ -305,9 +305,9 @@ public class ShoppingListServiceTests
             ImmutableArray.Create(34, 35), 10000002);
 
         result.Should().ContainKey(34);
-        result[34].Should().Be(5.50m);
+        result[34].SellPrice.Should().Be(5.50m);
         result.Should().ContainKey(35);
-        result[35].Should().Be(8.00m);
+        result[35].SellPrice.Should().Be(8.00m);
     }
 
     [Fact]
@@ -323,7 +323,8 @@ public class ShoppingListServiceTests
             ImmutableArray.Create(34), 10000002);
 
         result.Should().ContainKey(34);
-        result[34].Should().BeNull();
+        result[34].SellPrice.Should().BeNull();
+        result[34].BuyPrice.Should().BeNull();
     }
 
     // === T032: Integration Test for Cost Fetch Pipeline ===

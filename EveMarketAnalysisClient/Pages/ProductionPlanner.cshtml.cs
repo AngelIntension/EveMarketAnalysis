@@ -186,12 +186,17 @@ public class ProductionPlannerModel : PageModel
 
             var region = TradeHubRegion.All.FirstOrDefault(r => r.RegionId == regionId) ?? TradeHubRegion.Default;
 
-            var costEntries = parsedIds.Select(id => new
+            var costEntries = parsedIds.Select(id =>
             {
-                typeId = id,
-                unitCost = costs.TryGetValue(id, out var cost) ? cost : null,
-                volume = volumes.TryGetValue(id, out var vol) ? vol : 0.0,
-                available = costs.TryGetValue(id, out var c) && c.HasValue
+                var prices = costs.TryGetValue(id, out var p) ? p : null;
+                return new
+                {
+                    typeId = id,
+                    sellPrice = prices?.SellPrice,
+                    buyPrice = prices?.BuyPrice,
+                    volume = volumes.TryGetValue(id, out var vol) ? vol : 0.0,
+                    available = prices?.SellPrice.HasValue == true || prices?.BuyPrice.HasValue == true
+                };
             }).ToList();
 
             return new JsonResult(new

@@ -171,7 +171,7 @@ public class ProductionPlannerTests
                 It.IsAny<ImmutableArray<int>>(),
                 10000002,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Dictionary<int, decimal?> { { 34, 5.50m } }.ToFrozenDictionary());
+            .ReturnsAsync(new Dictionary<int, MarketPrices> { { 34, new MarketPrices(5.50m, 5.00m) } }.ToFrozenDictionary());
 
         shoppingListService.Setup(s => s.FetchVolumesAsync(
                 It.IsAny<ImmutableArray<int>>(),

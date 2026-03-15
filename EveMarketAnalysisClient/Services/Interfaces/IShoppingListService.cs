@@ -22,7 +22,7 @@ public interface IShoppingListService
         int characterId,
         CancellationToken cancellationToken = default);
 
-    Task<FrozenDictionary<int, decimal?>> FetchCostsAsync(
+    Task<FrozenDictionary<int, MarketPrices>> FetchCostsAsync(
         ImmutableArray<int> typeIds,
         int regionId,
         CancellationToken cancellationToken = default);

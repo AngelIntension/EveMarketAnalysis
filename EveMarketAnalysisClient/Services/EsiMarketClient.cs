@@ -36,12 +36,22 @@ public class EsiMarketClient : IEsiMarketClient
         var orders = ordersTask.Result;
         var history = historyTask.Result;
 
+        // Filter to trade hub station only
+        var hub = TradeHubRegion.All.FirstOrDefault(r => r.RegionId == regionId);
+        var stationId = hub?.StationId;
+
         decimal? lowestSell = null;
         decimal? highestBuy = null;
 
         foreach (var order in orders)
         {
-            var price = (decimal)(order.Price ?? 0);
+            if (order.Price == null || order.Price <= 0)
+                continue;
+
+            if (stationId.HasValue && order.LocationId != stationId.Value)
+                continue;
+
+            var price = (decimal)order.Price.Value;
             if (order.IsBuyOrder == true)
             {
                 if (highestBuy == null || price > highestBuy)

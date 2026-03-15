@@ -76,9 +76,12 @@ else
                                     <th style="width:20px"></th>
                                     <th>Material</th>
                                     <th class="text-end">Quantity</th>
-                                    <th class="text-end">Est. Cost</th>
+                                    <th class="text-end">Sell Price</th>
+                                    <th class="text-end">Sell Total</th>
+                                    <th class="text-end">Buy Price</th>
+                                    <th class="text-end">Buy Total</th>
+                                    <th class="text-end">Savings</th>
                                     <th class="text-end">Volume (m³)</th>
-                                    <th class="text-end">Total Cost</th>
                                 </tr>
                             </thead>
                             <tbody id="shopping-list-body"></tbody>
@@ -88,8 +91,11 @@ else
                                     <td>Total</td>
                                     <td id="total-quantity" class="text-end"></td>
                                     <td></td>
+                                    <td id="total-sell-cost" class="text-end"></td>
+                                    <td></td>
+                                    <td id="total-buy-cost" class="text-end"></td>
+                                    <td id="total-savings" class="text-end"></td>
                                     <td id="total-volume" class="text-end"></td>
-                                    <td id="total-cost" class="text-end"></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -281,8 +287,8 @@ else
                 var regionId = document.getElementById('region-select').value;
                 var url = costsUrl + '&regionId=' + regionId + '&typeIds=' + typeIds;
 
-                // Show loading indicators on cost cells
-                document.querySelectorAll('.cost-cell').forEach(function (cell) {
+                // Show loading indicators on price cells
+                document.querySelectorAll('.sell-price-cell, .sell-total-cell, .buy-price-cell, .buy-total-cell, .savings-cell').forEach(function (cell) {
                     cell.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:12px;height:12px"></span>';
                 });
 
@@ -332,7 +338,7 @@ else
                     var category = groupOrder[g];
                     var groupItems = groups[category];
                     if (groupOrder.length > 1 || category !== 'Uncategorized') {
-                        html += '<tr class="table-secondary"><td colspan="6"><strong>' + esc(category || 'Uncategorized') + '</strong></td></tr>';
+                        html += '<tr class="table-secondary"><td colspan="9"><strong>' + esc(category || 'Uncategorized') + '</strong></td></tr>';
                     }
                     for (var j = 0; j < groupItems.length; j++) {
                         var item = groupItems[j];
@@ -345,14 +351,17 @@ else
                         html += '</td>';
                         html += '<td>' + esc(item.typeName) + '</td>';
                         html += '<td class="text-end">' + formatNumber(item.totalQuantity) + '</td>';
-                        html += '<td class="text-end cost-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '<td class="text-end sell-price-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '<td class="text-end sell-total-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '<td class="text-end buy-price-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '<td class="text-end buy-total-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
+                        html += '<td class="text-end savings-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
                         html += '<td class="text-end volume-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
-                        html += '<td class="text-end total-cost-cell" data-typeid="' + item.typeId + '"><span class="text-muted">—</span></td>';
                         html += '</tr>';
                         if (hasSources) {
                             html += '<tr class="source-detail d-none" data-parent="' + item.typeId + '">';
                             html += '<td></td>';
-                            html += '<td colspan="5"><div class="ps-3">';
+                            html += '<td colspan="8"><div class="ps-3">';
                             for (var s = 0; s < item.sources.length; s++) {
                                 var src = item.sources[s];
                                 html += '<div class="text-muted" style="font-size:0.8em">' + esc(src.blueprintName) + ': ' + formatNumber(src.quantity) + '</div>';
@@ -369,7 +378,9 @@ else
                 document.getElementById('shopping-list-footer').classList.remove('d-none');
                 document.getElementById('total-quantity').textContent = formatNumber(items.reduce(function (sum, i) { return sum + i.totalQuantity; }, 0));
                 document.getElementById('total-volume').innerHTML = '<span class="text-muted">—</span>';
-                document.getElementById('total-cost').innerHTML = '<span class="text-muted">—</span>';
+                document.getElementById('total-sell-cost').innerHTML = '<span class="text-muted">—</span>';
+                document.getElementById('total-buy-cost').innerHTML = '<span class="text-muted">—</span>';
+                document.getElementById('total-savings').innerHTML = '<span class="text-muted">—</span>';
 
                 // Errors
                 if (data.errors && data.errors.length > 0) {
@@ -399,38 +410,72 @@ else
             function applyCosts(costData) {
                 if (!costData || !costData.costs) return;
 
-                var totalCost = 0;
+                var totalSellCost = 0;
+                var totalBuyCost = 0;
                 var totalVolume = 0;
-                var hasCost = false;
+                var hasSell = false;
+                var hasBuy = false;
+                var na = '<span class="text-muted">N/A</span>';
 
                 for (var i = 0; i < costData.costs.length; i++) {
                     var cost = costData.costs[i];
-                    var costCell = document.querySelector('.cost-cell[data-typeid="' + cost.typeId + '"]');
+                    var sellPriceCell = document.querySelector('.sell-price-cell[data-typeid="' + cost.typeId + '"]');
+                    var sellTotalCell = document.querySelector('.sell-total-cell[data-typeid="' + cost.typeId + '"]');
+                    var buyPriceCell = document.querySelector('.buy-price-cell[data-typeid="' + cost.typeId + '"]');
+                    var buyTotalCell = document.querySelector('.buy-total-cell[data-typeid="' + cost.typeId + '"]');
+                    var savingsCell = document.querySelector('.savings-cell[data-typeid="' + cost.typeId + '"]');
                     var volumeCell = document.querySelector('.volume-cell[data-typeid="' + cost.typeId + '"]');
-                    var totalCostCell = document.querySelector('.total-cost-cell[data-typeid="' + cost.typeId + '"]');
 
-                    if (costCell) costCell.innerHTML = cost.available ? formatIsk(cost.unitCost) : '<span class="text-muted">N/A</span>';
-
-                    // Find item quantity to calculate totals
                     var item = currentShoppingList.items.find(function (it) { return it.typeId === cost.typeId; });
-                    if (item) {
-                        var itemVolume = cost.volume * item.totalQuantity;
-                        if (volumeCell) volumeCell.innerHTML = formatVolume(itemVolume);
-                        totalVolume += itemVolume;
+                    if (!item) continue;
 
-                        if (cost.available && cost.unitCost != null) {
-                            var itemTotal = cost.unitCost * item.totalQuantity;
-                            if (totalCostCell) totalCostCell.innerHTML = formatIsk(itemTotal);
-                            totalCost += itemTotal;
-                            hasCost = true;
-                        } else {
-                            if (totalCostCell) totalCostCell.innerHTML = '<span class="text-muted">N/A</span>';
-                        }
+                    var qty = item.totalQuantity;
+                    var itemVolume = cost.volume * qty;
+                    if (volumeCell) volumeCell.innerHTML = formatVolume(itemVolume);
+                    totalVolume += itemVolume;
+
+                    var sellTotal = null;
+                    var buyTotal = null;
+
+                    if (cost.sellPrice != null) {
+                        if (sellPriceCell) sellPriceCell.innerHTML = formatIsk(cost.sellPrice);
+                        sellTotal = cost.sellPrice * qty;
+                        if (sellTotalCell) sellTotalCell.innerHTML = formatIsk(sellTotal);
+                        totalSellCost += sellTotal;
+                        hasSell = true;
+                    } else {
+                        if (sellPriceCell) sellPriceCell.innerHTML = na;
+                        if (sellTotalCell) sellTotalCell.innerHTML = na;
+                    }
+
+                    if (cost.buyPrice != null) {
+                        if (buyPriceCell) buyPriceCell.innerHTML = formatIsk(cost.buyPrice);
+                        buyTotal = cost.buyPrice * qty;
+                        if (buyTotalCell) buyTotalCell.innerHTML = formatIsk(buyTotal);
+                        totalBuyCost += buyTotal;
+                        hasBuy = true;
+                    } else {
+                        if (buyPriceCell) buyPriceCell.innerHTML = na;
+                        if (buyTotalCell) buyTotalCell.innerHTML = na;
+                    }
+
+                    if (sellTotal != null && buyTotal != null) {
+                        var savings = sellTotal - buyTotal;
+                        savingsCell.innerHTML = '<span class="' + (savings > 0 ? 'text-success' : 'text-muted') + '">' + formatIsk(savings) + '</span>';
+                    } else {
+                        if (savingsCell) savingsCell.innerHTML = na;
                     }
                 }
 
                 document.getElementById('total-volume').innerHTML = formatVolume(totalVolume);
-                document.getElementById('total-cost').innerHTML = hasCost ? formatIsk(totalCost) : '<span class="text-muted">—</span>';
+                document.getElementById('total-sell-cost').innerHTML = hasSell ? formatIsk(totalSellCost) : '<span class="text-muted">—</span>';
+                document.getElementById('total-buy-cost').innerHTML = hasBuy ? formatIsk(totalBuyCost) : '<span class="text-muted">—</span>';
+                if (hasSell && hasBuy) {
+                    var totalSavings = totalSellCost - totalBuyCost;
+                    document.getElementById('total-savings').innerHTML = '<span class="' + (totalSavings > 0 ? 'text-success' : 'text-muted') + '">' + formatIsk(totalSavings) + '</span>';
+                } else {
+                    document.getElementById('total-savings').innerHTML = '<span class="text-muted">—</span>';
+                }
             }
 
             // --- Export/Copy ---
@@ -460,7 +505,7 @@ else
                 var hasCosts = currentCosts && currentCosts.costs && currentCosts.costs.length > 0;
                 var lines = [];
                 var header = 'Material Name,Quantity,Category';
-                if (hasCosts) header += ',Estimated Unit Cost,Estimated Total Cost,Volume (m³),Total Volume (m³)';
+                if (hasCosts) header += ',Sell Price,Sell Total,Buy Price,Buy Total,Savings,Volume (m³),Total Volume (m³)';
                 lines.push(header);
 
                 for (var i = 0; i < items.length; i++) {
@@ -468,11 +513,14 @@ else
                     var line = csvEscape(item.typeName) + ',' + item.totalQuantity + ',' + csvEscape(item.category || '');
                     if (hasCosts) {
                         var cost = currentCosts.costs.find(function (c) { return c.typeId === item.typeId; });
-                        var unitCost = cost && cost.available ? cost.unitCost.toFixed(2) : 'N/A';
-                        var totalCost = cost && cost.available ? (cost.unitCost * item.totalQuantity).toFixed(2) : 'N/A';
+                        var sellPrice = cost && cost.sellPrice != null ? cost.sellPrice.toFixed(2) : 'N/A';
+                        var sellTotal = cost && cost.sellPrice != null ? (cost.sellPrice * item.totalQuantity).toFixed(2) : 'N/A';
+                        var buyPrice = cost && cost.buyPrice != null ? cost.buyPrice.toFixed(2) : 'N/A';
+                        var buyTotal = cost && cost.buyPrice != null ? (cost.buyPrice * item.totalQuantity).toFixed(2) : 'N/A';
+                        var savings = cost && cost.sellPrice != null && cost.buyPrice != null ? ((cost.sellPrice - cost.buyPrice) * item.totalQuantity).toFixed(2) : 'N/A';
                         var vol = cost ? cost.volume.toFixed(2) : '0.00';
                         var totalVol = cost ? (cost.volume * item.totalQuantity).toFixed(2) : '0.00';
-                        line += ',' + unitCost + ',' + totalCost + ',' + vol + ',' + totalVol;
+                        line += ',' + sellPrice + ',' + sellTotal + ',' + buyPrice + ',' + buyTotal + ',' + savings + ',' + vol + ',' + totalVol;
                     }
                     lines.push(line);
                 }
@@ -484,7 +532,7 @@ else
                 var hasCosts = currentCosts && currentCosts.costs && currentCosts.costs.length > 0;
                 var lines = [];
                 var header = 'Material Name\tQuantity\tCategory';
-                if (hasCosts) header += '\tEstimated Unit Cost\tEstimated Total Cost\tVolume (m³)\tTotal Volume (m³)';
+                if (hasCosts) header += '\tSell Price\tSell Total\tBuy Price\tBuy Total\tSavings\tVolume (m³)\tTotal Volume (m³)';
                 lines.push(header);
 
                 for (var i = 0; i < items.length; i++) {
@@ -492,11 +540,14 @@ else
                     var line = item.typeName + '\t' + item.totalQuantity + '\t' + (item.category || '');
                     if (hasCosts) {
                         var cost = currentCosts.costs.find(function (c) { return c.typeId === item.typeId; });
-                        var unitCost = cost && cost.available ? cost.unitCost.toFixed(2) : 'N/A';
-                        var totalCost = cost && cost.available ? (cost.unitCost * item.totalQuantity).toFixed(2) : 'N/A';
+                        var sellPrice = cost && cost.sellPrice != null ? cost.sellPrice.toFixed(2) : 'N/A';
+                        var sellTotal = cost && cost.sellPrice != null ? (cost.sellPrice * item.totalQuantity).toFixed(2) : 'N/A';
+                        var buyPrice = cost && cost.buyPrice != null ? cost.buyPrice.toFixed(2) : 'N/A';
+                        var buyTotal = cost && cost.buyPrice != null ? (cost.buyPrice * item.totalQuantity).toFixed(2) : 'N/A';
+                        var savings = cost && cost.sellPrice != null && cost.buyPrice != null ? ((cost.sellPrice - cost.buyPrice) * item.totalQuantity).toFixed(2) : 'N/A';
                         var vol = cost ? cost.volume.toFixed(2) : '0.00';
                         var totalVol = cost ? (cost.volume * item.totalQuantity).toFixed(2) : '0.00';
-                        line += '\t' + unitCost + '\t' + totalCost + '\t' + vol + '\t' + totalVol;
+                        line += '\t' + sellPrice + '\t' + sellTotal + '\t' + buyPrice + '\t' + buyTotal + '\t' + savings + '\t' + vol + '\t' + totalVol;
                     }
                     lines.push(line);
                 }

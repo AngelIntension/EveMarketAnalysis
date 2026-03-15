@@ -299,12 +299,12 @@ public class ShoppingListService : IShoppingListService
             Errors: errors.ToImmutableArray());
     }
 
-    public async Task<FrozenDictionary<int, decimal?>> FetchCostsAsync(
+    public async Task<FrozenDictionary<int, MarketPrices>> FetchCostsAsync(
         ImmutableArray<int> typeIds,
         int regionId,
         CancellationToken cancellationToken = default)
     {
-        var results = new Dictionary<int, decimal?>();
+        var results = new Dictionary<int, MarketPrices>();
 
         var tasks = typeIds.Select(async typeId =>
         {
@@ -312,12 +312,12 @@ public class ShoppingListService : IShoppingListService
             try
             {
                 var snapshot = await _marketClient.GetMarketSnapshotAsync(regionId, typeId, cancellationToken);
-                return (typeId, price: snapshot.LowestSellPrice);
+                return (typeId, prices: new MarketPrices(snapshot.LowestSellPrice, snapshot.HighestBuyPrice));
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to fetch cost for type {TypeId}", typeId);
-                return (typeId, price: (decimal?)null);
+                return (typeId, prices: new MarketPrices(null, null));
             }
             finally
             {
@@ -326,8 +326,8 @@ public class ShoppingListService : IShoppingListService
         });
 
         var snapshots = await Task.WhenAll(tasks);
-        foreach (var (typeId, price) in snapshots)
-            results[typeId] = price;
+        foreach (var (typeId, prices) in snapshots)
+            results[typeId] = prices;
 
         return results.ToFrozenDictionary();
     }
