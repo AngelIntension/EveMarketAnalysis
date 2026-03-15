@@ -371,9 +371,6 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         if (unownedTypeIds.Count == 0)
             return ImmutableArray<BpoPurchaseRecommendation>.Empty;
 
-        // Fetch NPC prices
-        var npcPrices = await GetNpcPricesAsync(cancellationToken);
-
         var recommendations = new List<BpoPurchaseRecommendation>();
         foreach (var bpTypeId in unownedTypeIds)
         {
@@ -387,11 +384,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             var projectedIskPerHour = CalculateProjectedIskPerHour(
                 activity, 10, 20, config, marketSnapshots, costIndex);
 
-            // NPC seeded price — try blueprint type ID first, then produced type ID
-            if (!npcPrices.TryGetValue(bpTypeId, out var npcPrice) || npcPrice == null)
-                npcPrices.TryGetValue(activity.ProducedTypeId, out npcPrice);
-
-            // Region-wide player market price
+            // Fetch region-wide BPO market data (includes NPC detection via order duration)
             MarketSnapshot? bpoSnapshot = null;
             try
             {
@@ -403,7 +396,13 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
                 _logger.LogWarning(ex, "Failed to fetch BPO market price for {TypeId}", bpTypeId);
             }
 
+            // NPC price: detected from sell orders with duration > 90 days
+            var npcPrice = bpoSnapshot?.NpcSellPrice;
+
+            // Player price: lowest sell excluding NPC orders
+            // If NPC and lowest sell are the same, there are no player orders below NPC
             var playerPrice = bpoSnapshot?.LowestSellPrice;
+
             var buyPrice = playerPrice ?? npcPrice;
 
             decimal? paybackDays = null;
@@ -577,35 +576,6 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         {
             _logger.LogWarning(ex, "Failed to fetch industry cost indices");
             return 0.0;
-        }
-    }
-
-    private async Task<Dictionary<int, decimal?>> GetNpcPricesAsync(CancellationToken cancellationToken)
-    {
-        const string cacheKey = "esi:npcprices";
-        if (_cache.TryGetValue(cacheKey, out Dictionary<int, decimal?>? cached) && cached != null)
-            return cached;
-
-        try
-        {
-            var prices = await _apiClient.Markets.Prices.GetAsync(cancellationToken: cancellationToken);
-            if (prices == null)
-                return new Dictionary<int, decimal?>();
-
-            var result = new Dictionary<int, decimal?>();
-            foreach (var p in prices)
-            {
-                if (p.TypeId.HasValue && p.AdjustedPrice.HasValue)
-                    result[(int)p.TypeId.Value] = (decimal)p.AdjustedPrice.Value;
-            }
-
-            _cache.Set(cacheKey, result, CostIndexCacheDuration);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to fetch NPC prices");
-            return new Dictionary<int, decimal?>();
         }
     }
 

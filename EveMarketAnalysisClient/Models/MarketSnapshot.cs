@@ -6,4 +6,5 @@ public record MarketSnapshot(
     decimal? LowestSellPrice,
     decimal? HighestBuyPrice,
     double AverageDailyVolume,
-    DateTimeOffset FetchedAt);
+    DateTimeOffset FetchedAt,
+    decimal? NpcSellPrice = null);

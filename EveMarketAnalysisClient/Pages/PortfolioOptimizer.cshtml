@@ -102,7 +102,7 @@ else
                 <div class="col-md-4 d-flex align-items-end gap-2">
                     <button id="refresh-btn" class="btn btn-outline-light" type="button">
                         <span id="refresh-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
-                        Refresh Analysis
+                        Analyze
                     </button>
                     <button id="simulate-btn" class="btn btn-outline-info d-none" type="button">Simulate Next Phase</button>
                 </div>
@@ -138,18 +138,9 @@ else
                 </tr>
             </thead>
             <tbody id="rankings-body">
-                @for (var i = 0; i < 5; i++)
-                {
-                    <tr>
-                        <td><span class="skeleton skeleton-text" style="width:140px"></span></td>
-                        <td><span class="skeleton skeleton-text" style="width:60px"></span></td>
-                        <td><span class="skeleton skeleton-text" style="width:30px"></span></td>
-                        <td><span class="skeleton skeleton-text" style="width:70px"></span></td>
-                        <td><span class="skeleton skeleton-text" style="width:100px"></span></td>
-                        <td><span class="skeleton skeleton-text" style="width:80px"></span></td>
-                        <td><span class="skeleton skeleton-text" style="width:200px"></span></td>
-                    </tr>
-                }
+                <tr>
+                    <td colspan="7" class="text-muted text-center">Configure your settings above and click Analyze to begin.</td>
+                </tr>
             </tbody>
         </table>
     </div>
@@ -524,9 +515,8 @@ else
                 fetchData(false);
             });
 
-            // Load config and fetch
+            // Load saved config — wait for user to click Analyze
             loadConfig();
-            fetchData(false);
         })();
     </script>
 }

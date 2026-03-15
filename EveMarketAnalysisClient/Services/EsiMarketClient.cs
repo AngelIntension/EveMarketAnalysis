@@ -42,6 +42,7 @@ public class EsiMarketClient : IEsiMarketClient
 
         decimal? lowestSell = null;
         decimal? highestBuy = null;
+        decimal? npcSellPrice = null;
 
         foreach (var order in orders)
         {
@@ -61,6 +62,10 @@ public class EsiMarketClient : IEsiMarketClient
             {
                 if (lowestSell == null || price < lowestSell)
                     lowestSell = price;
+
+                // NPC orders have duration > 90 days (players max at 90)
+                if (order.Duration > 90 && (npcSellPrice == null || price < npcSellPrice))
+                    npcSellPrice = price;
             }
         }
 
@@ -80,7 +85,8 @@ public class EsiMarketClient : IEsiMarketClient
             LowestSellPrice: lowestSell,
             HighestBuyPrice: highestBuy,
             AverageDailyVolume: averageVolume,
-            FetchedAt: DateTimeOffset.UtcNow);
+            FetchedAt: DateTimeOffset.UtcNow,
+            NpcSellPrice: npcSellPrice);
 
         _cache.Set(cacheKey, snapshot, CacheDuration);
         return snapshot;
@@ -104,6 +110,7 @@ public class EsiMarketClient : IEsiMarketClient
         // Region-wide: no station filter
         decimal? lowestSell = null;
         decimal? highestBuy = null;
+        decimal? npcSellPrice = null;
 
         foreach (var order in orders)
         {
@@ -120,6 +127,10 @@ public class EsiMarketClient : IEsiMarketClient
             {
                 if (lowestSell == null || price < lowestSell)
                     lowestSell = price;
+
+                // NPC orders have duration > 90 days (players max at 90)
+                if (order.Duration > 90 && (npcSellPrice == null || price < npcSellPrice))
+                    npcSellPrice = price;
             }
         }
 
@@ -139,7 +150,8 @@ public class EsiMarketClient : IEsiMarketClient
             LowestSellPrice: lowestSell,
             HighestBuyPrice: highestBuy,
             AverageDailyVolume: averageVolume,
-            FetchedAt: DateTimeOffset.UtcNow);
+            FetchedAt: DateTimeOffset.UtcNow,
+            NpcSellPrice: npcSellPrice);
 
         _cache.Set(cacheKey, snapshot, CacheDuration);
         return snapshot;
