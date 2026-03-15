@@ -62,7 +62,8 @@ public class PhaseCompletionTests
         int blueprintCount,
         decimal productRevenue)
     {
-        var bpTypeIds = Enumerable.Range(1001, blueprintCount).ToArray();
+        // Use type IDs that won't collide with skill-requirements.json entries
+        var bpTypeIds = Enumerable.Range(50001, blueprintCount).ToArray();
         var blueprints = bpTypeIds.Select(id => CreateBlueprint(id)).ToImmutableArray();
 
         characterClient.Setup(c => c.GetCharacterBlueprintsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))

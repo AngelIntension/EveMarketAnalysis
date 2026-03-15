@@ -565,7 +565,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             {
                 if (system.SolarSystemId == null) continue;
                 var mfgActivity = system.CostIndices?.FirstOrDefault(c =>
-                    c.Activity?.ToString() == "manufacturing");
+                    c.Activity == EveStableInfrastructure.Models.IndustrySystemsGet_cost_indices_activity.Manufacturing);
                 if (mfgActivity?.CostIndex != null)
                     indices[(int)system.SolarSystemId] = (double)mfgActivity.CostIndex;
             }
@@ -624,23 +624,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         {
             foreach (var batch in idsToFetch.Chunk(1000))
             {
-                try
-                {
-                    var body = batch.Select(id => (long?)id).ToList();
-                    var results = await _apiClient.Universe.Names.PostAsync(body, cancellationToken: cancellationToken);
-                    if (results != null)
-                    {
-                        foreach (var entry in results)
-                        {
-                            if (entry.Id.HasValue && entry.Name != null)
-                                nameCache[(int)entry.Id.Value] = entry.Name;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to resolve names for batch of {Count} IDs", batch.Length);
-                }
+                await ResolveBatchNamesAsync(batch, nameCache, cancellationToken);
             }
 
             foreach (var id in idsToFetch)
@@ -648,6 +632,54 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         }
 
         return nameCache;
+    }
+
+    private async Task ResolveBatchNamesAsync(
+        int[] batch, Dictionary<int, string> nameCache, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var body = batch.Select(id => (long?)id).ToList();
+            var results = await _apiClient.Universe.Names.PostAsync(body, cancellationToken: cancellationToken);
+            if (results != null)
+            {
+                foreach (var entry in results)
+                {
+                    if (entry.Id.HasValue && entry.Name != null)
+                        nameCache[(int)entry.Id.Value] = entry.Name;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve names for batch of {Count} IDs, retrying individually", batch.Length);
+
+            // ESI /universe/names returns 404 if any ID is invalid — retry one by one
+            if (batch.Length > 1)
+            {
+                foreach (var id in batch)
+                {
+                    if (nameCache.ContainsKey(id)) continue;
+                    try
+                    {
+                        var singleBody = new List<long?> { id };
+                        var singleResult = await _apiClient.Universe.Names.PostAsync(singleBody, cancellationToken: cancellationToken);
+                        if (singleResult != null)
+                        {
+                            foreach (var entry in singleResult)
+                            {
+                                if (entry.Id.HasValue && entry.Name != null)
+                                    nameCache[(int)entry.Id.Value] = entry.Name;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // ID doesn't exist in ESI — fallback will be set later
+                    }
+                }
+            }
+        }
     }
 
     private bool MeetsSkillRequirements(int blueprintTypeId, Dictionary<int, int> characterSkills)

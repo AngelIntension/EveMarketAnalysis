@@ -298,7 +298,7 @@ public class PortfolioAnalyzerTests
         var marketClient = new Mock<IEsiMarketClient>();
         var phaseService = new Mock<IPhaseService>();
 
-        var bp = CreateBlueprint(typeId: 20186); // Phase 5 - requires Industry 5 + Advanced Industry 1
+        var bp = CreateBlueprint(typeId: 1002); // Phase 5 - requires Industry 5 + Advanced Industry 1
 
         characterClient.Setup(c => c.GetCharacterBlueprintsAsync(
                 It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -309,8 +309,8 @@ public class PortfolioAnalyzerTests
                 It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ImmutableArray.Create(new CharacterSkill(3319, "Industry", 1, 10000)));
 
-        blueprintData.Setup(b => b.GetBlueprintActivity(20186))
-            .Returns(CreateActivity(20186, 22000, 36000, (34, 1000)));
+        blueprintData.Setup(b => b.GetBlueprintActivity(1002))
+            .Returns(CreateActivity(1002, 22000, 36000, (34, 1000)));
 
         marketClient.Setup(m => m.GetMarketSnapshotAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateSnapshot(34, lowestSell: 10m, highestBuy: 8m));
@@ -323,7 +323,7 @@ public class PortfolioAnalyzerTests
                 new PhaseDefinition(2, "T2", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(3, "T3", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "T4", "Test", ImmutableArray<int>.Empty),
-                new PhaseDefinition(5, "Capital", "Test", ImmutableArray.Create(20186))));
+                new PhaseDefinition(5, "Capital", "Test", ImmutableArray.Create(1002))));
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var config = new PortfolioConfiguration();
