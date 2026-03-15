@@ -1,9 +1,11 @@
 using System.Security.Claims;
 using EveMarketAnalysisClient.Models;
 using EveMarketAnalysisClient.Services.Interfaces;
+using EveStableInfrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace EveMarketAnalysisClient.Pages;
 
@@ -11,14 +13,18 @@ namespace EveMarketAnalysisClient.Pages;
 public class PortfolioOptimizerModel : PageModel
 {
     private readonly IPortfolioAnalyzer _analyzer;
+    private readonly ApiClient _apiClient;
+    private readonly IMemoryCache _cache;
 
     public string CharacterName { get; set; } = "Unknown";
     public int? CharacterId { get; set; }
     public string? ErrorMessage { get; set; }
 
-    public PortfolioOptimizerModel(IPortfolioAnalyzer analyzer)
+    public PortfolioOptimizerModel(IPortfolioAnalyzer analyzer, ApiClient apiClient, IMemoryCache cache)
     {
         _analyzer = analyzer;
+        _apiClient = apiClient;
+        _cache = cache;
     }
 
     public void OnGet()
@@ -105,5 +111,63 @@ public class PortfolioOptimizerModel : PageModel
         {
             return new JsonResult(new { error = $"Failed to analyze portfolio: {ex.Message}" }) { StatusCode = 500 };
         }
+    }
+
+    public async Task<IActionResult> OnGetSearchSystemsAsync(
+        string query = "",
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
+            return new JsonResult(Array.Empty<object>());
+
+        var systemMap = await GetSystemNameMapAsync(cancellationToken);
+
+        var results = systemMap
+            .Where(kvp => kvp.Value.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(kvp => !kvp.Value.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+            .ThenBy(kvp => kvp.Value)
+            .Take(15)
+            .Select(kvp => new { id = kvp.Key, name = kvp.Value })
+            .ToList();
+
+        return new JsonResult(results);
+    }
+
+    private async Task<Dictionary<int, string>> GetSystemNameMapAsync(CancellationToken cancellationToken)
+    {
+        const string cacheKey = "esi:systemnames";
+        if (_cache.TryGetValue(cacheKey, out Dictionary<int, string>? cached) && cached != null)
+            return cached;
+
+        // Fetch all system IDs
+        var systemIds = await _apiClient.Universe.Systems.GetAsync(cancellationToken: cancellationToken);
+        if (systemIds == null || systemIds.Count == 0)
+            return new Dictionary<int, string>();
+
+        // Batch-resolve names (max 1000 per call)
+        var nameMap = new Dictionary<int, string>();
+        foreach (var batch in systemIds.Chunk(1000))
+        {
+            try
+            {
+                var body = batch.Select(id => id).ToList();
+                var results = await _apiClient.Universe.Names.PostAsync(body, cancellationToken: cancellationToken);
+                if (results != null)
+                {
+                    foreach (var entry in results)
+                    {
+                        if (entry.Id.HasValue && entry.Name != null)
+                            nameMap[(int)entry.Id.Value] = entry.Name;
+                    }
+                }
+            }
+            catch
+            {
+                // Skip failed batches
+            }
+        }
+
+        _cache.Set(cacheKey, nameMap, TimeSpan.FromHours(24));
+        return nameMap;
     }
 }

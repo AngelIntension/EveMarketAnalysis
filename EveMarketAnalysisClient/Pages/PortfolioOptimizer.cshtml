@@ -45,15 +45,11 @@ else
                         <option value="10000030" data-station="60004588">Heimatar (Rens)</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <label for="mfg-system" class="form-label">Manufacturing System</label>
-                    <select id="mfg-system" class="form-select">
-                        <option value="30000142">Jita (The Forge)</option>
-                        <option value="30002187">Amarr (Domain)</option>
-                        <option value="30002659">Dodixie (Sinq Laison)</option>
-                        <option value="30002053">Hek (Metropolis)</option>
-                        <option value="30002510">Rens (Heimatar)</option>
-                    </select>
+                <div class="col-md-3" style="position:relative;">
+                    <label for="mfg-system-search" class="form-label">Manufacturing System</label>
+                    <input type="text" id="mfg-system-search" class="form-control" placeholder="Type system name..." autocomplete="off" value="Jita" />
+                    <input type="hidden" id="mfg-system" value="30000142" />
+                    <div id="mfg-system-dropdown" class="list-group position-absolute w-100" style="z-index:1050;max-height:200px;overflow-y:auto;display:none;"></div>
                 </div>
                 <div class="col-md-2">
                     <label for="mfg-slots" class="form-label">Mfg Slots</label>
@@ -205,7 +201,8 @@ else
                     var config = JSON.parse(saved);
                     if (config.procurementRegionId) setSelect('procurement-region', config.procurementRegionId);
                     if (config.sellingRegionId) setSelect('selling-region', config.sellingRegionId);
-                    if (config.manufacturingSystemId) setSelect('mfg-system', config.manufacturingSystemId);
+                    if (config.manufacturingSystemId) setVal('mfg-system', config.manufacturingSystemId);
+                    if (config.manufacturingSystemName) setVal('mfg-system-search', config.manufacturingSystemName);
                     if (config.manufacturingSlots) setVal('mfg-slots', config.manufacturingSlots);
                     if (config.buyingBrokerFee != null) setVal('buy-broker', config.buyingBrokerFee);
                     if (config.sellingBrokerFee != null) setVal('sell-broker', config.sellingBrokerFee);
@@ -221,6 +218,7 @@ else
                     procurementRegionId: getVal('procurement-region'),
                     sellingRegionId: getVal('selling-region'),
                     manufacturingSystemId: getVal('mfg-system'),
+                    manufacturingSystemName: getVal('mfg-system-search'),
                     manufacturingSlots: getVal('mfg-slots'),
                     buyingBrokerFee: getVal('buy-broker'),
                     sellingBrokerFee: getVal('sell-broker'),
@@ -258,6 +256,52 @@ else
                 whatIfEnabled = enableCheck.checked;
                 meLabel.textContent = whatIfEnabled ? 'ME ' + meSlider.value : 'Off (use actual)';
                 teLabel.textContent = whatIfEnabled ? 'TE ' + teSlider.value : 'Off (use actual)';
+            });
+
+            // === Manufacturing System Typeahead ===
+            var systemSearchUrl = '@Url.Page("/PortfolioOptimizer", "SearchSystems")';
+            var searchInput = document.getElementById('mfg-system-search');
+            var hiddenInput = document.getElementById('mfg-system');
+            var dropdown = document.getElementById('mfg-system-dropdown');
+            var debounceTimer = null;
+
+            searchInput.addEventListener('input', function () {
+                clearTimeout(debounceTimer);
+                var q = searchInput.value.trim();
+                if (q.length < 2) { dropdown.style.display = 'none'; return; }
+                debounceTimer = setTimeout(function () {
+                    fetch(systemSearchUrl + '&query=' + encodeURIComponent(q), { credentials: 'same-origin' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (results) {
+                            if (!results || results.length === 0) {
+                                dropdown.style.display = 'none';
+                                return;
+                            }
+                            dropdown.innerHTML = '';
+                            results.forEach(function (s) {
+                                var item = document.createElement('a');
+                                item.href = '#';
+                                item.className = 'list-group-item list-group-item-action';
+                                item.style.cssText = 'background:#1a1a2e;color:#c8c8d0;border-color:#2d2d44;';
+                                item.textContent = s.name;
+                                item.addEventListener('click', function (e) {
+                                    e.preventDefault();
+                                    searchInput.value = s.name;
+                                    hiddenInput.value = s.id;
+                                    dropdown.style.display = 'none';
+                                });
+                                dropdown.appendChild(item);
+                            });
+                            dropdown.style.display = 'block';
+                        })
+                        .catch(function () { dropdown.style.display = 'none'; });
+                }, 300);
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function (e) {
+                if (!searchInput.contains(e.target) && !dropdown.contains(e.target))
+                    dropdown.style.display = 'none';
             });
 
             // === Data Fetch ===

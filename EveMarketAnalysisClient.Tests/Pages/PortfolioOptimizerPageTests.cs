@@ -3,10 +3,12 @@ using System.Security.Claims;
 using EveMarketAnalysisClient.Models;
 using EveMarketAnalysisClient.Pages;
 using EveMarketAnalysisClient.Services.Interfaces;
+using EveStableInfrastructure;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Caching.Memory;
 using Moq;
 
 namespace EveMarketAnalysisClient.Tests.Pages;
@@ -37,7 +39,11 @@ public class PortfolioOptimizerPageTests
 
         var pageContext = new PageContext { HttpContext = httpContext };
 
-        return new PortfolioOptimizerModel(analyzer.Object)
+        var apiClient = new Mock<ApiClient>(
+            new Mock<Microsoft.Kiota.Abstractions.IRequestAdapter>().Object);
+        var cache = new MemoryCache(new MemoryCacheOptions());
+
+        return new PortfolioOptimizerModel(analyzer.Object, apiClient.Object, cache)
         {
             PageContext = pageContext
         };
