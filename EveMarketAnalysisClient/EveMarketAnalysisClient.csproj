@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Data\blueprints.json" />
+    <EmbeddedResource Include="Data\phases.json" />
+    <EmbeddedResource Include="Data\skill-requirements.json" />
   </ItemGroup>
 
 </Project>
