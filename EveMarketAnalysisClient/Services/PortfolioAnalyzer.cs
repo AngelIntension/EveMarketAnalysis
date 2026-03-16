@@ -256,12 +256,13 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         // Sales tax
         var salesTax = productRevenue * (config.SalesTaxPercent / 100m);
 
-        // Job installation cost = EIV × (system cost index + facility tax rate)
+        // Job installation cost = EIV × (system cost index + facility tax + SCC surcharge)
         var systemCostFee = estimatedItemValue * (decimal)costIndex;
         var facilityTax = estimatedItemValue * (config.FacilityTaxPercent / 100m);
+        var sccSurcharge = estimatedItemValue * (config.SccSurchargePercent / 100m);
 
         // Gross profit
-        var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee - facilityTax;
+        var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee - facilityTax - sccSurcharge;
 
         // Profit margin
         var profitMarginPercent = materialCost > 0 ? grossProfit / materialCost * 100m : 0m;
@@ -295,6 +296,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             SalesTax: salesTax,
             SystemCostFee: systemCostFee,
             FacilityTax: facilityTax,
+            SccSurcharge: sccSurcharge,
             GrossProfit: grossProfit,
             ProfitMarginPercent: profitMarginPercent,
             ProductionTimeSeconds: productionTimeSeconds,
@@ -519,8 +521,9 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         var salesTax = productRevenue * (config.SalesTaxPercent / 100m);
         var systemCostFee = estimatedItemValue * (decimal)costIndex;
         var facilityTax = estimatedItemValue * (config.FacilityTaxPercent / 100m);
+        var sccSurcharge = estimatedItemValue * (config.SccSurchargePercent / 100m);
 
-        var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee - facilityTax;
+        var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee - facilityTax - sccSurcharge;
         var productionTimeSeconds = activity.BaseTime * (1.0 - te / 100.0);
 
         return productionTimeSeconds > 0 ? grossProfit / (decimal)(productionTimeSeconds / 3600.0) : 0m;
@@ -751,6 +754,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             SalesTax: 0,
             SystemCostFee: 0,
             FacilityTax: 0,
+            SccSurcharge: 0,
             GrossProfit: 0,
             ProfitMarginPercent: 0,
             ProductionTimeSeconds: 0,

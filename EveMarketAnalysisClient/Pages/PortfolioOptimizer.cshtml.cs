@@ -50,7 +50,8 @@ public class PortfolioOptimizerModel : PageModel
         decimal buyingBrokerFee = 3.0m,
         decimal sellingBrokerFee = 3.0m,
         decimal salesTax = 3.6m,
-        decimal facilityTax = 2.5m,
+        decimal facilityTax = 0.25m,
+        decimal sccSurcharge = 4.0m,
         decimal minIskPerHour = 25_000_000m,
         decimal dailyIncomeGoal = 750_000_000m,
         int manufacturingSlots = 11,
@@ -80,6 +81,9 @@ public class PortfolioOptimizerModel : PageModel
         if (facilityTax < 0 || facilityTax > 100)
             return new JsonResult(new { error = "Facility tax must be between 0 and 100%." }) { StatusCode = 400 };
 
+        if (sccSurcharge < 0 || sccSurcharge > 100)
+            return new JsonResult(new { error = "SCC surcharge must be between 0 and 100%." }) { StatusCode = 400 };
+
         if (whatIfME.HasValue && (whatIfME < 0 || whatIfME > 10))
             return new JsonResult(new { error = "What-if ME must be between 0 and 10." }) { StatusCode = 400 };
 
@@ -101,6 +105,7 @@ public class PortfolioOptimizerModel : PageModel
                 SellingBrokerFeePercent: sellingBrokerFee,
                 SalesTaxPercent: salesTax,
                 FacilityTaxPercent: facilityTax,
+                SccSurchargePercent: sccSurcharge,
                 MinIskPerHour: minIskPerHour,
                 DailyIncomeGoal: dailyIncomeGoal,
                 ManufacturingSlots: manufacturingSlots,

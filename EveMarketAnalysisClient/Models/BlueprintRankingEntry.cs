@@ -12,6 +12,7 @@ public record BlueprintRankingEntry(
     decimal SalesTax,
     decimal SystemCostFee,
     decimal FacilityTax,
+    decimal SccSurcharge,
     decimal GrossProfit,
     decimal ProfitMarginPercent,
     double ProductionTimeSeconds,
