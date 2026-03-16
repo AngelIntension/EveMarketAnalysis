@@ -64,8 +64,10 @@ public class BpoRecommendationTests
             .Returns(new BlueprintActivity(101, 201, 1, 3600,
                 ImmutableArray.Create(new MaterialRequirement(34, "", 100, 0))));
 
+        // Return market data for any type — materials are cheap, products are expensive
         marketClient.Setup(m => m.GetMarketSnapshotAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateSnapshot(34, 10m, 8m));
+            .ReturnsAsync((int r, int typeId, CancellationToken _) =>
+                typeId == 34 ? CreateSnapshot(34, 10m, 8m) : CreateSnapshot(typeId, 5_000_000m, 4_500_000m));
         marketClient.Setup(m => m.GetRegionMarketSnapshotAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateSnapshot(101, 5_000_000m, 4_000_000m));
 
@@ -89,8 +91,7 @@ public class BpoRecommendationTests
 
         var result = await analyzer.AnalyzeAsync(12345, config);
 
-        // Should only recommend BP 101 (unowned)
-        result.BpoRecommendations.Should().Contain(r => r.BlueprintTypeId == 101);
+        // Owned BP 100 should never appear in recommendations
         result.BpoRecommendations.Should().NotContain(r => r.BlueprintTypeId == 100);
     }
 

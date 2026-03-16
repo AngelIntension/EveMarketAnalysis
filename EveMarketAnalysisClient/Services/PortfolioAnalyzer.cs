@@ -465,14 +465,19 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
             var buyPrice = playerPrice ?? npcPrice;
 
+            // Skip BPOs that aren't available on the market
+            if (!buyPrice.HasValue || buyPrice.Value <= 0)
+                continue;
+
+            // Skip BPOs where the product has no market data
+            if (projectedIskPerHour <= 0)
+                continue;
+
             decimal? paybackDays = null;
             decimal? roiPercent = null;
-            if (buyPrice.HasValue && buyPrice.Value > 0 && projectedIskPerHour > 0)
-            {
-                var dailyProfit = projectedIskPerHour * 24m;
-                paybackDays = buyPrice.Value / dailyProfit;
-                roiPercent = dailyProfit * 30m / buyPrice.Value * 100m;
-            }
+            var dailyProfit = projectedIskPerHour * 24m;
+            paybackDays = buyPrice.Value / dailyProfit;
+            roiPercent = dailyProfit * 30m / buyPrice.Value * 100m;
 
             recommendations.Add(new BpoPurchaseRecommendation(
                 BlueprintTypeId: bpTypeId,
@@ -484,7 +489,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
                 ProjectedIskPerHour: projectedIskPerHour,
                 PaybackPeriodDays: paybackDays,
                 RoiPercent: roiPercent,
-                HasMarketData: projectedIskPerHour > 0,
+                HasMarketData: true,
                 ErrorMessage: null));
         }
 
