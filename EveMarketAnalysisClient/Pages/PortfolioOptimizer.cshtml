@@ -143,7 +143,10 @@ else
 
     <!-- Rankings Table -->
     <div id="rankings-section" class="d-none">
-        <h4>Blueprint Rankings</h4>
+        <div class="d-flex justify-content-between align-items-center">
+            <h4>Blueprint Rankings</h4>
+            <button id="export-rankings-btn" class="btn btn-sm btn-outline-secondary" type="button">Export CSV</button>
+        </div>
         <table class="table">
             <thead>
                 <tr>
@@ -162,7 +165,10 @@ else
 
     <!-- BPO Recommendations -->
     <div id="bpo-section" class="mt-4 d-none">
-        <h4>Recommended BPO Purchases</h4>
+        <div class="d-flex justify-content-between align-items-center">
+            <h4>Recommended BPO Purchases</h4>
+            <button id="export-bpo-btn" class="btn btn-sm btn-outline-secondary" type="button">Export CSV</button>
+        </div>
         <table class="table">
             <thead>
                 <tr>
@@ -182,7 +188,10 @@ else
 
     <!-- Research Recommendations -->
     <div id="research-section" class="mt-4 d-none">
-        <h4>Research Queue Recommendations</h4>
+        <div class="d-flex justify-content-between align-items-center">
+            <h4>Research Queue Recommendations</h4>
+            <button id="export-research-btn" class="btn btn-sm btn-outline-secondary" type="button">Export CSV</button>
+        </div>
         <table class="table">
             <thead>
                 <tr>
@@ -597,6 +606,86 @@ else
                 phaseOverride = currentData.currentPhaseNumber + 1;
                 saveConfig();
                 fetchData(false);
+            });
+
+            // === CSV Export ===
+            function csvEscape(val) {
+                if (val == null) return '';
+                var str = String(val);
+                if (str.indexOf(',') !== -1 || str.indexOf('"') !== -1 || str.indexOf('\n') !== -1) {
+                    return '"' + str.replace(/"/g, '""') + '"';
+                }
+                return str;
+            }
+
+            function downloadCsv(filename, headers, rows) {
+                var lines = [headers.map(csvEscape).join(',')];
+                rows.forEach(function (row) {
+                    lines.push(row.map(csvEscape).join(','));
+                });
+                var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                var link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }
+
+            document.getElementById('export-rankings-btn').addEventListener('click', function () {
+                if (!currentData || !currentData.rankings || currentData.rankings.length === 0) return;
+                var headers = ['Product', 'ME', 'TE', 'Phase', 'Profit %', 'ISK/Hour', 'Daily Volume', 'Material Cost', 'Product Revenue', 'Gross Profit', 'Meets Threshold', 'Error'];
+                var rows = currentData.rankings.map(function (r) {
+                    return [
+                        r.producedTypeName,
+                        r.blueprint.materialEfficiency,
+                        r.blueprint.timeEfficiency,
+                        r.phaseNumber || '',
+                        r.profitMarginPercent.toFixed(1),
+                        r.iskPerHour.toFixed(0),
+                        r.averageDailyVolume.toFixed(0),
+                        r.materialCost.toFixed(0),
+                        r.productRevenue.toFixed(0),
+                        r.grossProfit.toFixed(0),
+                        r.meetsThreshold ? 'Yes' : 'No',
+                        r.errorMessage || ''
+                    ];
+                });
+                downloadCsv('blueprint-rankings.csv', headers, rows);
+            });
+
+            document.getElementById('export-bpo-btn').addEventListener('click', function () {
+                if (!currentData || !currentData.bpoRecommendations || currentData.bpoRecommendations.length === 0) return;
+                var headers = ['Blueprint', 'Product', 'Phase', 'NPC Price', 'Player Price', 'Projected ISK/hr', 'ROI %', 'Payback (days)'];
+                var rows = currentData.bpoRecommendations.map(function (r) {
+                    return [
+                        r.blueprintName,
+                        r.producedTypeName,
+                        r.phaseNumber,
+                        r.npcSeededPrice != null ? r.npcSeededPrice.toFixed(0) : '',
+                        r.playerMarketPrice != null ? r.playerMarketPrice.toFixed(0) : '',
+                        r.projectedIskPerHour.toFixed(0),
+                        r.roiPercent != null ? r.roiPercent.toFixed(1) : '',
+                        r.paybackPeriodDays != null ? r.paybackPeriodDays.toFixed(1) : ''
+                    ];
+                });
+                downloadCsv('bpo-recommendations.csv', headers, rows);
+            });
+
+            document.getElementById('export-research-btn').addEventListener('click', function () {
+                if (!currentData || !currentData.researchRecommendations || currentData.researchRecommendations.length === 0) return;
+                var headers = ['Product', 'Current ME', 'Current TE', 'Current ISK/hr', 'Projected ISK/hr', 'Gain', 'Gain %'];
+                var rows = currentData.researchRecommendations.map(function (r) {
+                    return [
+                        r.producedTypeName,
+                        r.currentME,
+                        r.currentTE,
+                        r.currentIskPerHour.toFixed(0),
+                        r.projectedIskPerHour.toFixed(0),
+                        r.iskPerHourGain.toFixed(0),
+                        r.gainPercent.toFixed(1)
+                    ];
+                });
+                downloadCsv('research-recommendations.csv', headers, rows);
             });
 
             // Load saved config — wait for user to click Analyze
