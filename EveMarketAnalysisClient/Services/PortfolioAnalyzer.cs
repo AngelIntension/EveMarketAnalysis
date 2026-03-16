@@ -150,9 +150,6 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         currentPhaseNumber = DetermineCurrentPhase(initialPhaseStatuses, phaseOverride);
         var phaseOverrideActive = phaseOverride.HasValue;
 
-        if (simulateNextPhase && currentPhaseNumber < 5)
-            currentPhaseNumber++;
-
         // 10. Resolve names for BPO recommendation candidates (capped to 100)
         var phaseCandidates = _phaseService.GetCandidateTypeIdsForPhase(currentPhaseNumber);
         if (phaseCandidates.Length > 0)
@@ -283,15 +280,16 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             var phaseRankings = rankings.Where(r =>
                 r.PhaseNumber == phase.PhaseNumber && r.HasMarketData && r.ErrorMessage == null);
 
+            var ownedInPhase = phaseRankings.Count();
             var ownedProfitable = phaseRankings.Count(r => r.MeetsThreshold);
             var dailyIncome = phaseRankings
                 .Where(r => r.MeetsThreshold)
                 .Sum(r => r.IskPerHour * 24m);
 
             // Phase is exhausted if we evaluated BPO recommendations for it
-            // and found zero profitable unowned BPOs
+            // and found zero profitable unowned BPOs (user owns at least some BPs in this phase)
             var isPhaseExhausted = phase.PhaseNumber == bpoRecommendationPhase
-                && ownedProfitable > 0
+                && ownedInPhase > 0
                 && !bpoRecommendations.Any(r => r.HasMarketData && r.ProjectedIskPerHour >= config.MinIskPerHour);
 
             var isSlotComplete = ownedProfitable >= requiredCount;

@@ -58,23 +58,33 @@ public class SimulationTests
         blueprintData.Setup(b => b.GetBlueprintActivity(100))
             .Returns(new BlueprintActivity(100, 200, 1, 3600,
                 ImmutableArray.Create(new MaterialRequirement(34, "", 100, 0))));
+        // Unowned candidate 101 in phase 1 to prevent exhaustion
+        blueprintData.Setup(b => b.GetBlueprintActivity(101))
+            .Returns(new BlueprintActivity(101, 201, 1, 3600,
+                ImmutableArray.Create(new MaterialRequirement(34, "", 100, 0))));
 
         marketClient.Setup(m => m.GetMarketSnapshotAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateSnapshot(34, 10m, 8m));
         marketClient.Setup(m => m.GetMarketSnapshotAsync(It.IsAny<int>(), 200, It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateSnapshot(200, 5_000_000m, 4_500_000m));
+        marketClient.Setup(m => m.GetMarketSnapshotAsync(It.IsAny<int>(), 201, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateSnapshot(201, 5_000_000m, 4_500_000m));
+        marketClient.Setup(m => m.GetRegionMarketSnapshotAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateSnapshot(101, 10_000_000m, 8_000_000m));
 
         phaseService.Setup(p => p.GetPhaseForTypeId(100))
-            .Returns(new PhaseDefinition(1, "Phase 1", "Test", ImmutableArray.Create(100)));
+            .Returns(new PhaseDefinition(1, "Phase 1", "Test", ImmutableArray.Create(100, 101)));
         phaseService.Setup(p => p.GetAllPhases())
             .Returns(ImmutableArray.Create(
-                new PhaseDefinition(1, "Phase 1", "T", ImmutableArray.Create(100)),
+                new PhaseDefinition(1, "Phase 1", "T", ImmutableArray.Create(100, 101)),
                 new PhaseDefinition(2, "Phase 2", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(3, "Phase 3", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "Phase 4", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "Phase 5", "T", ImmutableArray<int>.Empty)));
         phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
             .Returns(ImmutableArray<int>.Empty);
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(1))
+            .Returns(ImmutableArray.Create(100, 101));
     }
 
     [Fact]
