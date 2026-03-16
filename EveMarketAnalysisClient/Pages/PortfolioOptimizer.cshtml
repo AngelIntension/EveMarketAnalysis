@@ -441,7 +441,13 @@ else
                     card += '<div class="progress-bar ' + (ps.isComplete ? 'bg-success' : 'bg-warning') + '" style="width:' + pct + '%"></div>';
                     card += '</div>';
                     card += '<small>' + ps.ownedProfitableCount + '/' + ps.requiredCount + ' profitable BPs</small>';
-                    if (ps.completionReason) card += '<br><small class="text-success">Completed (' + ps.completionReason + ')</small>';
+                    if (ps.completionReason) {
+                        var reasonLabel = ps.completionReason === 'exhausted' ? 'all profitable BPOs owned'
+                            : ps.completionReason === 'slots' ? 'slots filled'
+                            : ps.completionReason === 'income' ? 'income goal met'
+                            : ps.completionReason;
+                        card += '<br><small class="text-success">Completed (' + reasonLabel + ')</small>';
+                    }
                     card += '</div></div>';
                     container.innerHTML += card;
                 });

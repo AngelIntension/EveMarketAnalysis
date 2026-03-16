@@ -143,22 +143,21 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             .Concat(errorResults)
             .ToImmutableArray();
 
-        // 9. Evaluate phase statuses
-        var phaseStatuses = EvaluatePhaseStatuses(sortedRankings, phases, configuration);
-
-        // 10. Determine current phase from completion
-        currentPhaseNumber = DetermineCurrentPhase(phaseStatuses, phaseOverride);
+        // 9. Determine initial phase (before exhaustion check)
+        var ownedTypeIdSet = blueprints.Select(b => b.TypeId).ToHashSet();
+        var initialPhaseStatuses = EvaluatePhaseStatuses(sortedRankings, phases, configuration,
+            ImmutableArray<BpoPurchaseRecommendation>.Empty, 0);
+        currentPhaseNumber = DetermineCurrentPhase(initialPhaseStatuses, phaseOverride);
         var phaseOverrideActive = phaseOverride.HasValue;
 
         if (simulateNextPhase && currentPhaseNumber < 5)
             currentPhaseNumber++;
 
-        // 11. Resolve names for BPO recommendation candidates (capped to 100)
+        // 10. Resolve names for BPO recommendation candidates (capped to 100)
         var phaseCandidates = _phaseService.GetCandidateTypeIdsForPhase(currentPhaseNumber);
         if (phaseCandidates.Length > 0)
         {
             var bpoTypeIds = new HashSet<int>();
-            var ownedTypeIdSet = blueprints.Select(b => b.TypeId).ToHashSet();
             var count = 0;
             foreach (var candidateId in phaseCandidates)
             {
@@ -176,12 +175,22 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
                 await ResolveTypeNamesAsync(bpoTypeIds, cancellationToken);
         }
 
-        // Generate BPO recommendations
+        // 11. Generate BPO recommendations
         var bpoRecommendations = await GenerateBpoRecommendationsAsync(
             blueprints, currentPhaseNumber, phases, configuration,
             marketSnapshots, typeNames, costIndex, adjustedPrices, cancellationToken);
 
-        // 12. Generate research recommendations
+        // 12. Re-evaluate phase statuses with exhaustion check using BPO results
+        var phaseStatuses = EvaluatePhaseStatuses(sortedRankings, phases, configuration,
+            bpoRecommendations, currentPhaseNumber);
+
+        // If current phase is now exhausted, advance and note it
+        var finalPhaseNumber = DetermineCurrentPhase(phaseStatuses, phaseOverride);
+        if (simulateNextPhase && finalPhaseNumber < 5)
+            finalPhaseNumber++;
+        currentPhaseNumber = finalPhaseNumber;
+
+        // 13. Generate research recommendations
         var researchRecommendations = GenerateResearchRecommendations(
             eligibleBlueprints, configuration, marketSnapshots, sellingSnapshots,
             typeNames, costIndex, adjustedPrices);
@@ -263,7 +272,9 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
     private ImmutableArray<PhaseStatus> EvaluatePhaseStatuses(
         ImmutableArray<BlueprintRankingEntry> rankings,
         ImmutableArray<PhaseDefinition> phases,
-        PortfolioConfiguration config)
+        PortfolioConfiguration config,
+        ImmutableArray<BpoPurchaseRecommendation> bpoRecommendations,
+        int bpoRecommendationPhase)
     {
         var requiredCount = (int)Math.Ceiling(config.ManufacturingSlots * 9.0 / 11.0);
 
@@ -277,13 +288,20 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
                 .Where(r => r.MeetsThreshold)
                 .Sum(r => r.IskPerHour * 24m);
 
+            // Phase is exhausted if we evaluated BPO recommendations for it
+            // and found zero profitable unowned BPOs
+            var isPhaseExhausted = phase.PhaseNumber == bpoRecommendationPhase
+                && ownedProfitable > 0
+                && !bpoRecommendations.Any(r => r.HasMarketData && r.ProjectedIskPerHour >= config.MinIskPerHour);
+
             var isSlotComplete = ownedProfitable >= requiredCount;
             var isIncomeComplete = dailyIncome >= config.DailyIncomeGoal;
-            var isComplete = isSlotComplete || isIncomeComplete;
+            var isComplete = isSlotComplete || isIncomeComplete || isPhaseExhausted;
 
             string? completionReason = null;
             if (isSlotComplete) completionReason = "slots";
             else if (isIncomeComplete) completionReason = "income";
+            else if (isPhaseExhausted) completionReason = "exhausted";
 
             return new PhaseStatus(
                 Phase: phase,
