@@ -553,8 +553,9 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
         var productSnapshots = sellingSnapshots ?? procurementSnapshots;
         var productSnapshot = productSnapshots.GetValueOrDefault(activity.ProducedTypeId);
-        var productRevenue = productSnapshot?.LowestSellPrice ?? 0m;
-        var hasMarketData = productRevenue > 0;
+        var unitPrice = productSnapshot?.LowestSellPrice ?? 0m;
+        var productRevenue = unitPrice * activity.ProducedQuantity;
+        var hasMarketData = unitPrice > 0;
         var averageDailyVolume = productSnapshot?.AverageDailyVolume ?? 0.0;
 
         var buyingBrokerFee = materialCost * (config.BuyingBrokerFeePercent / 100m);
