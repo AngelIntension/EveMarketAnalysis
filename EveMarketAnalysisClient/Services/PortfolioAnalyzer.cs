@@ -217,74 +217,23 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         var effectiveME = config.WhatIfME ?? bp.MaterialEfficiency;
         var effectiveTE = config.WhatIfTE ?? bp.TimeEfficiency;
 
-        // ME-adjusted material cost (highest buy at procurement station)
-        // and Estimated Item Value (EIV) using CCP adjusted prices
-        var materialCost = 0m;
-        var estimatedItemValue = 0m;
-        var hasMaterialPrices = true;
-        foreach (var mat in activity.Materials)
-        {
-            var adjustedQty = Math.Max(1, (int)Math.Ceiling(mat.BaseQuantity * (1.0 - effectiveME / 100.0)));
+        // Use shared calculation for all cost/profit math
+        var calc = CalculateDetailed(activity, effectiveME, effectiveTE, config,
+            procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices);
 
-            if (procurementSnapshots.TryGetValue(mat.TypeId, out var matSnapshot) && matSnapshot.HighestBuyPrice.HasValue)
-                materialCost += matSnapshot.HighestBuyPrice.Value * adjustedQty;
-            else
-                hasMaterialPrices = false;
-
-            // EIV uses adjusted_price (CCP's reference price) × base quantity (not ME-adjusted)
-            if (adjustedPrices.TryGetValue(mat.TypeId, out var adjPrice))
-                estimatedItemValue += adjPrice * mat.BaseQuantity;
-        }
-
-        // Product revenue (lowest sell at selling hub)
-        var productSnapshots = sellingSnapshots ?? procurementSnapshots;
-        var productSnapshot = productSnapshots.GetValueOrDefault(activity.ProducedTypeId);
-        var productRevenue = 0m;
-        var hasMarketData = false;
-        var averageDailyVolume = 0.0;
-
-        if (productSnapshot != null)
-        {
-            productRevenue = productSnapshot.LowestSellPrice ?? 0m;
-            hasMarketData = productRevenue > 0;
-            averageDailyVolume = productSnapshot.AverageDailyVolume;
-        }
-
-        // Buying broker fee (on materials)
-        var buyingBrokerFee = materialCost * (config.BuyingBrokerFeePercent / 100m);
-
-        // Selling broker fee (on product)
-        var sellingBrokerFee = productRevenue * (config.SellingBrokerFeePercent / 100m);
-
-        // Sales tax
-        var salesTax = productRevenue * (config.SalesTaxPercent / 100m);
-
-        // Job installation cost = EIV × (system cost index + facility tax + SCC surcharge)
-        var systemCostFee = estimatedItemValue * (decimal)costIndex;
-        var facilityTax = estimatedItemValue * (config.FacilityTaxPercent / 100m);
-        var sccSurcharge = estimatedItemValue * (config.SccSurchargePercent / 100m);
-
-        // Gross profit
-        var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee - facilityTax - sccSurcharge;
-
-        // Profit margin
-        var profitMarginPercent = materialCost > 0 ? grossProfit / materialCost * 100m : 0m;
-
-        // TE-adjusted production time
-        var productionTimeSeconds = activity.BaseTime * (1.0 - effectiveTE / 100.0);
-
-        // ISK/hr
-        var iskPerHour = productionTimeSeconds > 0 ? grossProfit / (decimal)(productionTimeSeconds / 3600.0) : 0m;
+        var iskPerHour = calc.ProductionTimeSeconds > 0
+            ? calc.GrossProfit / (decimal)(calc.ProductionTimeSeconds / 3600.0) : 0m;
 
         // Phase assignment
         var phase = _phaseService.GetPhaseForTypeId(bp.TypeId);
 
         var producedName = typeNames.GetValueOrDefault(activity.ProducedTypeId, $"Type {activity.ProducedTypeId}");
+        var profitMarginPercent = calc.MaterialCost > 0 ? calc.GrossProfit / calc.MaterialCost * 100m : 0m;
 
         string? errorMessage = null;
-        if (!hasMarketData)
+        if (!calc.HasMarketData)
             errorMessage = "No market data available for product";
-        else if (!hasMaterialPrices)
+        else if (!calc.HasAllMaterialPrices)
             errorMessage = "Some material prices unavailable — cost is an estimate";
 
         return new BlueprintRankingEntry(
@@ -292,22 +241,22 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             ProducedTypeName: producedName,
             ProducedTypeId: activity.ProducedTypeId,
             PhaseNumber: phase?.PhaseNumber,
-            MaterialCost: materialCost,
-            ProductRevenue: productRevenue,
-            BuyingBrokerFee: buyingBrokerFee,
-            SellingBrokerFee: sellingBrokerFee,
-            SalesTax: salesTax,
-            SystemCostFee: systemCostFee,
-            FacilityTax: facilityTax,
-            SccSurcharge: sccSurcharge,
-            GrossProfit: grossProfit,
+            MaterialCost: calc.MaterialCost,
+            ProductRevenue: calc.ProductRevenue,
+            BuyingBrokerFee: calc.BuyingBrokerFee,
+            SellingBrokerFee: calc.SellingBrokerFee,
+            SalesTax: calc.SalesTax,
+            SystemCostFee: calc.SystemCostFee,
+            FacilityTax: calc.FacilityTax,
+            SccSurcharge: calc.SccSurcharge,
+            GrossProfit: calc.GrossProfit,
             ProfitMarginPercent: profitMarginPercent,
-            ProductionTimeSeconds: productionTimeSeconds,
+            ProductionTimeSeconds: calc.ProductionTimeSeconds,
             IskPerHour: iskPerHour,
-            AverageDailyVolume: averageDailyVolume,
+            AverageDailyVolume: calc.AverageDailyVolume,
             IsCurrentPhase: phase?.PhaseNumber == currentPhaseNumber,
             MeetsThreshold: iskPerHour >= config.MinIskPerHour,
-            HasMarketData: hasMarketData,
+            HasMarketData: calc.HasMarketData,
             ErrorMessage: errorMessage);
     }
 
@@ -397,8 +346,9 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             var bpName = typeNames.GetValueOrDefault(bpTypeId, $"Blueprint {bpTypeId}");
 
             // Calculate projected ISK/hr at ME10/TE20
-            var projectedIskPerHour = CalculateProjectedIskPerHour(
+            var projectedCalc = CalculateDetailed(
                 activity, 10, 20, config, marketSnapshots, costIndex, adjustedPrices: adjustedPrices);
+            var projectedIskPerHour = CalculateIskPerHour(projectedCalc);
 
             // Fetch region-wide BPO market data (includes NPC detection via order duration)
             MarketSnapshot? bpoSnapshot = null;
@@ -465,12 +415,12 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             if (bp.MaterialEfficiency >= 10 && bp.TimeEfficiency >= 20)
                 continue;
 
-            var currentIskPerHour = CalculateProjectedIskPerHour(
+            var currentIskPerHour = CalculateIskPerHour(CalculateDetailed(
                 activity, bp.MaterialEfficiency, bp.TimeEfficiency,
-                config, procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices);
+                config, procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices));
 
-            var projectedIskPerHour = CalculateProjectedIskPerHour(
-                activity, 10, 20, config, procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices);
+            var projectedIskPerHour = CalculateIskPerHour(CalculateDetailed(
+                activity, 10, 20, config, procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices));
 
             var gain = projectedIskPerHour - currentIskPerHour;
             if (gain <= 0) continue;
@@ -497,7 +447,22 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             .ToImmutableArray();
     }
 
-    private decimal CalculateProjectedIskPerHour(
+    private record CalculationResult(
+        decimal MaterialCost,
+        decimal ProductRevenue,
+        decimal BuyingBrokerFee,
+        decimal SellingBrokerFee,
+        decimal SalesTax,
+        decimal SystemCostFee,
+        decimal FacilityTax,
+        decimal SccSurcharge,
+        decimal GrossProfit,
+        double ProductionTimeSeconds,
+        double AverageDailyVolume,
+        bool HasMarketData,
+        bool HasAllMaterialPrices);
+
+    private static CalculationResult CalculateDetailed(
         BlueprintActivity activity,
         int me, int te,
         PortfolioConfiguration config,
@@ -508,11 +473,14 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
     {
         var materialCost = 0m;
         var estimatedItemValue = 0m;
+        var hasAllMaterialPrices = true;
         foreach (var mat in activity.Materials)
         {
             var adjustedQty = Math.Max(1, (int)Math.Ceiling(mat.BaseQuantity * (1.0 - me / 100.0)));
             if (procurementSnapshots.TryGetValue(mat.TypeId, out var matSnapshot) && matSnapshot.HighestBuyPrice.HasValue)
                 materialCost += matSnapshot.HighestBuyPrice.Value * adjustedQty;
+            else
+                hasAllMaterialPrices = false;
 
             if (adjustedPrices != null && adjustedPrices.TryGetValue(mat.TypeId, out var adjPrice))
                 estimatedItemValue += adjPrice * mat.BaseQuantity;
@@ -521,6 +489,8 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         var productSnapshots = sellingSnapshots ?? procurementSnapshots;
         var productSnapshot = productSnapshots.GetValueOrDefault(activity.ProducedTypeId);
         var productRevenue = productSnapshot?.LowestSellPrice ?? 0m;
+        var hasMarketData = productRevenue > 0;
+        var averageDailyVolume = productSnapshot?.AverageDailyVolume ?? 0.0;
 
         var buyingBrokerFee = materialCost * (config.BuyingBrokerFeePercent / 100m);
         var sellingBrokerFee = productRevenue * (config.SellingBrokerFeePercent / 100m);
@@ -532,7 +502,15 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee - facilityTax - sccSurcharge;
         var productionTimeSeconds = activity.BaseTime * (1.0 - te / 100.0);
 
-        return productionTimeSeconds > 0 ? grossProfit / (decimal)(productionTimeSeconds / 3600.0) : 0m;
+        return new CalculationResult(materialCost, productRevenue, buyingBrokerFee, sellingBrokerFee,
+            salesTax, systemCostFee, facilityTax, sccSurcharge, grossProfit, productionTimeSeconds,
+            averageDailyVolume, hasMarketData, hasAllMaterialPrices);
+    }
+
+    private static decimal CalculateIskPerHour(CalculationResult calc)
+    {
+        return calc.ProductionTimeSeconds > 0
+            ? calc.GrossProfit / (decimal)(calc.ProductionTimeSeconds / 3600.0) : 0m;
     }
 
     private async Task<Dictionary<int, MarketSnapshot>> FetchMarketSnapshotsAsync(
