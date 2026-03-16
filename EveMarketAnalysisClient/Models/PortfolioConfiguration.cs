@@ -15,4 +15,5 @@ public record PortfolioConfiguration(
     decimal DailyIncomeGoal = 750_000_000m,
     int ManufacturingSlots = 11,
     int? WhatIfME = null,
-    int? WhatIfTE = null);
+    int? WhatIfTE = null,
+    bool UseBuyOrdersForMaterials = true);

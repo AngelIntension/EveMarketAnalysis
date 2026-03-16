@@ -576,8 +576,16 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         foreach (var mat in activity.Materials)
         {
             var adjustedQty = Math.Max(1, (int)Math.Ceiling(mat.BaseQuantity * (1.0 - me / 100.0)));
-            if (procurementSnapshots.TryGetValue(mat.TypeId, out var matSnapshot) && matSnapshot.HighestBuyPrice.HasValue)
-                materialCost += matSnapshot.HighestBuyPrice.Value * adjustedQty;
+            if (procurementSnapshots.TryGetValue(mat.TypeId, out var matSnapshot))
+            {
+                var matPrice = config.UseBuyOrdersForMaterials
+                    ? matSnapshot.HighestBuyPrice
+                    : matSnapshot.LowestSellPrice;
+                if (matPrice.HasValue)
+                    materialCost += matPrice.Value * adjustedQty;
+                else
+                    hasAllMaterialPrices = false;
+            }
             else
                 hasAllMaterialPrices = false;
 
