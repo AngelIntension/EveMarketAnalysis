@@ -42,6 +42,7 @@ public class EsiMarketClient : IEsiMarketClient
 
         decimal? lowestSell = null;
         decimal? highestBuy = null;
+        decimal? npcSellPrice = null;
 
         foreach (var order in orders)
         {
@@ -61,6 +62,10 @@ public class EsiMarketClient : IEsiMarketClient
             {
                 if (lowestSell == null || price < lowestSell)
                     lowestSell = price;
+
+                // NPC orders have duration > 90 days (players max at 90)
+                if (order.Duration > 90 && (npcSellPrice == null || price < npcSellPrice))
+                    npcSellPrice = price;
             }
         }
 
@@ -80,7 +85,73 @@ public class EsiMarketClient : IEsiMarketClient
             LowestSellPrice: lowestSell,
             HighestBuyPrice: highestBuy,
             AverageDailyVolume: averageVolume,
-            FetchedAt: DateTimeOffset.UtcNow);
+            FetchedAt: DateTimeOffset.UtcNow,
+            NpcSellPrice: npcSellPrice);
+
+        _cache.Set(cacheKey, snapshot, CacheDuration);
+        return snapshot;
+    }
+
+    public async Task<MarketSnapshot> GetRegionMarketSnapshotAsync(
+        int regionId, int typeId, CancellationToken cancellationToken = default)
+    {
+        var cacheKey = $"regionmarket:{regionId}:{typeId}";
+        if (_cache.TryGetValue(cacheKey, out MarketSnapshot? cached) && cached != null)
+            return cached;
+
+        var ordersTask = FetchAllOrdersAsync(regionId, typeId, cancellationToken);
+        var historyTask = FetchHistoryAsync(regionId, typeId, cancellationToken);
+
+        await Task.WhenAll(ordersTask, historyTask);
+
+        var orders = ordersTask.Result;
+        var history = historyTask.Result;
+
+        // Region-wide: no station filter
+        decimal? lowestSell = null;
+        decimal? highestBuy = null;
+        decimal? npcSellPrice = null;
+
+        foreach (var order in orders)
+        {
+            if (order.Price == null || order.Price <= 0)
+                continue;
+
+            var price = (decimal)order.Price.Value;
+            if (order.IsBuyOrder == true)
+            {
+                if (highestBuy == null || price > highestBuy)
+                    highestBuy = price;
+            }
+            else
+            {
+                if (lowestSell == null || price < lowestSell)
+                    lowestSell = price;
+
+                // NPC orders have duration > 90 days (players max at 90)
+                if (order.Duration > 90 && (npcSellPrice == null || price < npcSellPrice))
+                    npcSellPrice = price;
+            }
+        }
+
+        var averageVolume = 0.0;
+        if (history.Count > 0)
+        {
+            var recentHistory = history
+                .OrderByDescending(h => h.Date?.ToString() ?? "")
+                .Take(30)
+                .ToList();
+            averageVolume = recentHistory.Average(h => (double)(h.Volume ?? 0));
+        }
+
+        var snapshot = new MarketSnapshot(
+            TypeId: typeId,
+            RegionId: regionId,
+            LowestSellPrice: lowestSell,
+            HighestBuyPrice: highestBuy,
+            AverageDailyVolume: averageVolume,
+            FetchedAt: DateTimeOffset.UtcNow,
+            NpcSellPrice: npcSellPrice);
 
         _cache.Set(cacheKey, snapshot, CacheDuration);
         return snapshot;

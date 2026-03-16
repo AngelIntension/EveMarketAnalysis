@@ -11,6 +11,7 @@ public class EsiCharacterClient : IEsiCharacterClient
     private readonly ApiClient _apiClient;
     private readonly IMemoryCache _cache;
     private static readonly TimeSpan SkillGroupCacheDuration = TimeSpan.FromHours(24);
+    private static readonly TimeSpan CharacterDataCacheDuration = TimeSpan.FromMinutes(5);
 
     public EsiCharacterClient(ApiClient apiClient, IMemoryCache cache)
     {
@@ -27,6 +28,10 @@ public class EsiCharacterClient : IEsiCharacterClient
     public async Task<ImmutableArray<CharacterSkill>> GetCharacterSkillsAsync(
         int characterId, CancellationToken cancellationToken = default)
     {
+        var cacheKey = $"esi:{characterId}:skills";
+        if (_cache.TryGetValue(cacheKey, out ImmutableArray<CharacterSkill> cached) && !cached.IsDefault)
+            return cached;
+
         var response = await _apiClient.Characters[characterId].Skills.GetAsync(cancellationToken: cancellationToken);
         if (response?.Skills == null)
             return ImmutableArray<CharacterSkill>.Empty;
@@ -34,7 +39,7 @@ public class EsiCharacterClient : IEsiCharacterClient
         var skillIds = response.Skills.Select(s => (int)(s.SkillId ?? 0)).ToList();
         var skillNames = await ResolveNamesAsync(skillIds, cancellationToken);
 
-        return response.Skills
+        var result = response.Skills
             .Select(s =>
             {
                 var skillId = (int)(s.SkillId ?? 0);
@@ -48,6 +53,9 @@ public class EsiCharacterClient : IEsiCharacterClient
                     SkillPointsInSkill: s.SkillpointsInSkill ?? 0);
             })
             .ToImmutableArray();
+
+        _cache.Set(cacheKey, result, CharacterDataCacheDuration);
+        return result;
     }
 
     public async Task<ImmutableArray<SkillQueueEntry>> GetSkillQueueAsync(
@@ -249,6 +257,10 @@ public class EsiCharacterClient : IEsiCharacterClient
     public async Task<ImmutableArray<CharacterBlueprint>> GetCharacterBlueprintsAsync(
         int characterId, CancellationToken cancellationToken = default)
     {
+        var cacheKey = $"esi:{characterId}:blueprints";
+        if (_cache.TryGetValue(cacheKey, out ImmutableArray<CharacterBlueprint> cached) && !cached.IsDefault)
+            return cached;
+
         var blueprints = await _apiClient.Characters[characterId].Blueprints.GetAsync(cancellationToken: cancellationToken);
         if (blueprints == null || blueprints.Count == 0)
             return ImmutableArray<CharacterBlueprint>.Empty;
@@ -261,7 +273,7 @@ public class EsiCharacterClient : IEsiCharacterClient
 
         var names = await ResolveNamesAsync(typeIds, cancellationToken);
 
-        return blueprints
+        var result = blueprints
             .Select(b =>
             {
                 var typeId = (int)(b.TypeId ?? 0);
@@ -282,5 +294,8 @@ public class EsiCharacterClient : IEsiCharacterClient
                     IsCopy: isCopy);
             })
             .ToImmutableArray();
+
+        _cache.Set(cacheKey, result, CharacterDataCacheDuration);
+        return result;
     }
 }

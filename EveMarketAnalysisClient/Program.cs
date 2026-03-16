@@ -63,6 +63,10 @@ builder.Services.AddScoped<IProfitabilityCalculator, ProfitabilityCalculator>();
 // Shopping list planner services
 builder.Services.AddScoped<IShoppingListService, ShoppingListService>();
 
+// Portfolio optimizer services
+builder.Services.AddSingleton<IPhaseService, PhaseService>();
+builder.Services.AddScoped<IPortfolioAnalyzer, PortfolioAnalyzer>();
+
 // Add services to the container.
 builder.Services.AddRazorPages();
 

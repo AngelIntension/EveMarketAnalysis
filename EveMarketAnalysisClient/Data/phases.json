@@ -1,0 +1,29 @@
+{
+  "phases": [
+    {
+      "phaseNumber": 1,
+      "name": "Small Items & Ammo",
+      "description": "Quick builds: ammo, charges, small modules, and simple items (build time under 15 min)"
+    },
+    {
+      "phaseNumber": 2,
+      "name": "Frigates & Components",
+      "description": "T1 frigates, destroyers, drones, and mid-complexity modules (build time 15 min to 2 hours)"
+    },
+    {
+      "phaseNumber": 3,
+      "name": "Cruisers & Battlecruisers",
+      "description": "Cruiser and battlecruiser hulls with medium modules (build time 2 to 6 hours)"
+    },
+    {
+      "phaseNumber": 4,
+      "name": "Battleships & Large Items",
+      "description": "Battleship hulls, large modules, and complex items (build time 6 to 24 hours)"
+    },
+    {
+      "phaseNumber": 5,
+      "name": "Capitals & Advanced",
+      "description": "Capital ships, T2 components, and advanced manufacturing (build time over 24 hours)"
+    }
+  ]
+}

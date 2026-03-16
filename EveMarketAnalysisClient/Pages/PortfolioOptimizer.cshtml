@@ -1,0 +1,724 @@
+@page
+@model EveMarketAnalysisClient.Pages.PortfolioOptimizerModel
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@{
+    ViewData["Title"] = "Portfolio Optimizer";
+}
+
+<h2>Portfolio Optimizer</h2>
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        <p>@Model.ErrorMessage</p>
+    </div>
+}
+else
+{
+    <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
+    <div id="portfolio-warning" class="alert alert-warning d-none" role="alert">
+        Portfolio size exceeds 300 blueprints. Analysis may be slow.
+    </div>
+
+    <!-- Controls Panel -->
+    <div class="card mb-3" style="background-color:#1a1a2e;border-color:#2d2d44;">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label for="procurement-region" class="form-label">Procurement Hub</label>
+                    <select id="procurement-region" class="form-select">
+                        <option value="10000002" data-station="60003760">The Forge (Jita)</option>
+                        <option value="10000043" data-station="60008494">Domain (Amarr)</option>
+                        <option value="10000032" data-station="60011866">Sinq Laison (Dodixie)</option>
+                        <option value="10000042" data-station="60005686">Metropolis (Hek)</option>
+                        <option value="10000030" data-station="60004588">Heimatar (Rens)</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="selling-region" class="form-label">Selling Hub</label>
+                    <select id="selling-region" class="form-select">
+                        <option value="10000002" data-station="60003760">The Forge (Jita)</option>
+                        <option value="10000043" data-station="60008494">Domain (Amarr)</option>
+                        <option value="10000032" data-station="60011866">Sinq Laison (Dodixie)</option>
+                        <option value="10000042" data-station="60005686">Metropolis (Hek)</option>
+                        <option value="10000030" data-station="60004588">Heimatar (Rens)</option>
+                    </select>
+                </div>
+                <div class="col-md-3" style="position:relative;">
+                    <label for="mfg-system-search" class="form-label">Manufacturing System</label>
+                    <input type="text" id="mfg-system-search" class="form-control" placeholder="Type system name..." autocomplete="off" value="Jita" />
+                    <input type="hidden" id="mfg-system" value="30000142" />
+                    <div id="mfg-system-dropdown" class="list-group position-absolute w-100" style="z-index:1050;max-height:200px;overflow-y:auto;display:none;"></div>
+                </div>
+                <div class="col-md-2">
+                    <label for="mfg-slots" class="form-label">Mfg Slots</label>
+                    <input type="number" id="mfg-slots" class="form-control" value="11" min="1" max="50" />
+                </div>
+            </div>
+            <div class="row g-3 mt-1 align-items-end">
+                <div class="col-md-2">
+                    <label for="buy-broker" class="form-label">Buy Broker %</label>
+                    <input type="number" id="buy-broker" class="form-control" value="3.0" min="0" max="100" step="0.1" />
+                </div>
+                <div class="col-md-2">
+                    <label for="sell-broker" class="form-label">Sell Broker %</label>
+                    <input type="number" id="sell-broker" class="form-control" value="3.0" min="0" max="100" step="0.1" />
+                </div>
+                <div class="col-md-2">
+                    <label for="sales-tax" class="form-label">Sales Tax %</label>
+                    <input type="number" id="sales-tax" class="form-control" value="3.6" min="0" max="100" step="0.1" />
+                </div>
+                <div class="col-md-2">
+                    <label for="facility-tax" class="form-label">Facility Tax %</label>
+                    <input type="number" id="facility-tax" class="form-control" value="0.25" min="0" max="100" step="0.01" />
+                </div>
+                <div class="col-md-2">
+                    <label for="scc-surcharge" class="form-label">SCC Surcharge %</label>
+                    <input type="number" id="scc-surcharge" class="form-control" value="4.0" min="0" max="100" step="0.1" />
+                </div>
+                <div class="col-md-2">
+                    <label for="min-isk" class="form-label">Min ISK/hr</label>
+                    <input type="number" id="min-isk" class="form-control" value="25000000" min="0" step="1000000" />
+                </div>
+                <div class="col-md-2">
+                    <label for="daily-goal" class="form-label">Daily Income Goal</label>
+                    <input type="number" id="daily-goal" class="form-control" value="750000000" min="0" step="10000000" />
+                </div>
+                <div class="col-md-2">
+                    <label for="implant-time" class="form-label">Implant Time %</label>
+                    <input type="number" id="implant-time" class="form-control" value="0" min="0" max="4" step="1" />
+                </div>
+                <div class="col-md-2">
+                    <label for="production-duration" class="form-label">Production Duration (hrs)</label>
+                    <input type="number" id="production-duration" class="form-control" value="24" min="1" max="8760" step="1" />
+                </div>
+            </div>
+            <div class="row g-3 mt-1 align-items-end">
+                <div class="col-md-2">
+                    <label for="whatif-me" class="form-label">What-If ME (0-10)</label>
+                    <input type="range" id="whatif-me" class="form-range" min="0" max="10" value="0" />
+                    <small id="whatif-me-label" class="text-muted">Off (use actual)</small>
+                </div>
+                <div class="col-md-2">
+                    <label for="whatif-te" class="form-label">What-If TE (0-20)</label>
+                    <input type="range" id="whatif-te" class="form-range" min="0" max="20" value="0" />
+                    <small id="whatif-te-label" class="text-muted">Off (use actual)</small>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input" type="checkbox" id="whatif-enable" />
+                            <label class="form-check-label" for="whatif-enable">Enable What-If</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="use-buy-orders" checked />
+                            <label class="form-check-label" for="use-buy-orders">Buy orders for mats</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="use-buy-orders-selling" />
+                            <label class="form-check-label" for="use-buy-orders-selling">Buy orders for sales</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-2">
+                    <button id="refresh-btn" class="btn btn-outline-light" type="button">
+                        <span id="refresh-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        Analyze
+                    </button>
+                    <button id="simulate-btn" class="btn btn-outline-info d-none" type="button">Simulate Next Phase</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pre-analysis placeholder -->
+    <div id="pre-analysis-placeholder" class="text-muted text-center py-5">
+        Configure your settings above and click <strong>Analyze</strong> to begin.
+    </div>
+
+    <!-- Summary Bar -->
+    <div id="summary-bar" class="mb-3 d-none">
+        <span id="summary-text" class="text-muted"></span>
+    </div>
+
+    <!-- Phase Roadmap -->
+    <div id="phase-roadmap" class="mb-4 d-none">
+        <h4>Production Roadmap</h4>
+        <div id="phase-cards" class="d-flex gap-3 flex-wrap"></div>
+        <button id="advance-phase-btn" class="btn btn-sm btn-outline-warning mt-2 d-none">Advance Phase</button>
+    </div>
+
+    <!-- Rankings Table -->
+    <div id="rankings-section" class="d-none">
+        <div class="d-flex justify-content-between align-items-center">
+            <h4>Blueprint Rankings</h4>
+            <button id="export-rankings-btn" class="btn btn-sm btn-outline-secondary" type="button">Export CSV</button>
+        </div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>ME/TE</th>
+                    <th>Phase</th>
+                    <th class="sortable" data-sort="profitMarginPercent">Profit %</th>
+                    <th class="sortable" data-sort="iskPerHour">ISK/Hour</th>
+                    <th class="sortable" data-sort="averageDailyVolume">Daily Volume</th>
+                    <th>Runs</th>
+                    <th>Costs</th>
+                </tr>
+            </thead>
+            <tbody id="rankings-body"></tbody>
+        </table>
+    </div>
+
+    <!-- BPO Recommendations -->
+    <div id="bpo-section" class="mt-4 d-none">
+        <div class="d-flex justify-content-between align-items-center">
+            <h4>Recommended BPO Purchases</h4>
+            <button id="export-bpo-btn" class="btn btn-sm btn-outline-secondary" type="button">Export CSV</button>
+        </div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Blueprint</th>
+                    <th>Product</th>
+                    <th>Phase</th>
+                    <th>NPC Price</th>
+                    <th>Player Price</th>
+                    <th>Projected ISK/hr</th>
+                    <th>ROI %</th>
+                    <th>Payback (days)</th>
+                </tr>
+            </thead>
+            <tbody id="bpo-body"></tbody>
+        </table>
+    </div>
+
+    <!-- Research Recommendations -->
+    <div id="research-section" class="mt-4 d-none">
+        <div class="d-flex justify-content-between align-items-center">
+            <h4>Research Queue Recommendations</h4>
+            <button id="export-research-btn" class="btn btn-sm btn-outline-secondary" type="button">Export CSV</button>
+        </div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Current ME/TE</th>
+                    <th>Current ISK/hr</th>
+                    <th>Projected ISK/hr</th>
+                    <th>Gain</th>
+                    <th>Gain %</th>
+                </tr>
+            </thead>
+            <tbody id="research-body"></tbody>
+        </table>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        (function () {
+            var baseUrl = '@Url.Page("/PortfolioOptimizer", "Analysis")';
+            if (!baseUrl) return;
+
+            var currentData = null;
+            var currentSort = { field: 'iskPerHour', desc: true };
+            var whatIfEnabled = false;
+            var phaseOverride = null;
+
+            // === Local Storage ===
+            var STORAGE_KEY = 'portfolioConfig';
+
+            function loadConfig() {
+                try {
+                    var saved = localStorage.getItem(STORAGE_KEY);
+                    if (!saved) return;
+                    var config = JSON.parse(saved);
+                    if (config.procurementRegionId) setSelect('procurement-region', config.procurementRegionId);
+                    if (config.sellingRegionId) setSelect('selling-region', config.sellingRegionId);
+                    if (config.manufacturingSystemId) setVal('mfg-system', config.manufacturingSystemId);
+                    if (config.manufacturingSystemName) setVal('mfg-system-search', config.manufacturingSystemName);
+                    if (config.manufacturingSlots) setVal('mfg-slots', config.manufacturingSlots);
+                    if (config.buyingBrokerFee != null) setVal('buy-broker', config.buyingBrokerFee);
+                    if (config.sellingBrokerFee != null) setVal('sell-broker', config.sellingBrokerFee);
+                    if (config.salesTax != null) setVal('sales-tax', config.salesTax);
+                    if (config.facilityTax != null) setVal('facility-tax', config.facilityTax);
+                    if (config.sccSurcharge != null) setVal('scc-surcharge', config.sccSurcharge);
+                    if (config.useBuyOrders === false) document.getElementById('use-buy-orders').checked = false;
+                    if (config.useBuyOrdersForSelling === true) document.getElementById('use-buy-orders-selling').checked = true;
+                    if (config.minIskPerHour != null) setVal('min-isk', config.minIskPerHour);
+                    if (config.dailyIncomeGoal != null) setVal('daily-goal', config.dailyIncomeGoal);
+                    if (config.implantTimeReduction != null) setVal('implant-time', config.implantTimeReduction);
+                    if (config.productionDuration != null) setVal('production-duration', config.productionDuration);
+                    if (config.phaseOverride) phaseOverride = config.phaseOverride;
+                } catch (e) { /* ignore corrupt storage */ }
+            }
+
+            function saveConfig() {
+                var config = {
+                    procurementRegionId: getVal('procurement-region'),
+                    sellingRegionId: getVal('selling-region'),
+                    manufacturingSystemId: getVal('mfg-system'),
+                    manufacturingSystemName: getVal('mfg-system-search'),
+                    manufacturingSlots: getVal('mfg-slots'),
+                    buyingBrokerFee: getVal('buy-broker'),
+                    sellingBrokerFee: getVal('sell-broker'),
+                    salesTax: getVal('sales-tax'),
+                    facilityTax: getVal('facility-tax'),
+                    sccSurcharge: getVal('scc-surcharge'),
+                    useBuyOrders: document.getElementById('use-buy-orders').checked,
+                    useBuyOrdersForSelling: document.getElementById('use-buy-orders-selling').checked,
+                    minIskPerHour: getVal('min-isk'),
+                    dailyIncomeGoal: getVal('daily-goal'),
+                    implantTimeReduction: getVal('implant-time'),
+                    productionDuration: getVal('production-duration'),
+                    phaseOverride: phaseOverride
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+            }
+
+            function getVal(id) { return document.getElementById(id).value; }
+            function setVal(id, v) { document.getElementById(id).value = v; }
+            function setSelect(id, v) {
+                var el = document.getElementById(id);
+                for (var i = 0; i < el.options.length; i++) {
+                    if (el.options[i].value == v) { el.selectedIndex = i; break; }
+                }
+            }
+
+            // === What-If Sliders ===
+            var meSlider = document.getElementById('whatif-me');
+            var teSlider = document.getElementById('whatif-te');
+            var meLabel = document.getElementById('whatif-me-label');
+            var teLabel = document.getElementById('whatif-te-label');
+            var enableCheck = document.getElementById('whatif-enable');
+
+            meSlider.addEventListener('input', function () {
+                meLabel.textContent = whatIfEnabled ? 'ME ' + meSlider.value : 'Off (use actual)';
+            });
+            teSlider.addEventListener('input', function () {
+                teLabel.textContent = whatIfEnabled ? 'TE ' + teSlider.value : 'Off (use actual)';
+            });
+            enableCheck.addEventListener('change', function () {
+                whatIfEnabled = enableCheck.checked;
+                meLabel.textContent = whatIfEnabled ? 'ME ' + meSlider.value : 'Off (use actual)';
+                teLabel.textContent = whatIfEnabled ? 'TE ' + teSlider.value : 'Off (use actual)';
+            });
+
+            // === Manufacturing System Typeahead ===
+            var systemSearchUrl = '@Url.Page("/PortfolioOptimizer", "SearchSystems")';
+            var searchInput = document.getElementById('mfg-system-search');
+            var hiddenInput = document.getElementById('mfg-system');
+            var dropdown = document.getElementById('mfg-system-dropdown');
+            var debounceTimer = null;
+
+            searchInput.addEventListener('input', function () {
+                clearTimeout(debounceTimer);
+                var q = searchInput.value.trim();
+                if (q.length < 2) { dropdown.style.display = 'none'; return; }
+                debounceTimer = setTimeout(function () {
+                    fetch(systemSearchUrl + '&query=' + encodeURIComponent(q), { credentials: 'same-origin' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (results) {
+                            if (!results || results.length === 0) {
+                                dropdown.style.display = 'none';
+                                return;
+                            }
+                            dropdown.innerHTML = '';
+                            results.forEach(function (s) {
+                                var item = document.createElement('a');
+                                item.href = '#';
+                                item.className = 'list-group-item list-group-item-action';
+                                item.style.cssText = 'background:#1a1a2e;color:#c8c8d0;border-color:#2d2d44;';
+                                item.textContent = s.name;
+                                item.addEventListener('click', function (e) {
+                                    e.preventDefault();
+                                    searchInput.value = s.name;
+                                    hiddenInput.value = s.id;
+                                    dropdown.style.display = 'none';
+                                });
+                                dropdown.appendChild(item);
+                            });
+                            dropdown.style.display = 'block';
+                        })
+                        .catch(function () { dropdown.style.display = 'none'; });
+                }, 300);
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function (e) {
+                if (!searchInput.contains(e.target) && !dropdown.contains(e.target))
+                    dropdown.style.display = 'none';
+            });
+
+            // === Data Fetch ===
+            function fetchData(simulate) {
+                saveConfig();
+                var sel = document.getElementById('procurement-region');
+                var procStation = sel.options[sel.selectedIndex].getAttribute('data-station');
+                var sellSel = document.getElementById('selling-region');
+                var sellStation = sellSel.options[sellSel.selectedIndex].getAttribute('data-station');
+
+                var params = 'procurementRegionId=' + getVal('procurement-region')
+                    + '&procurementStationId=' + procStation
+                    + '&sellingRegionId=' + getVal('selling-region')
+                    + '&sellingStationId=' + sellStation
+                    + '&manufacturingSystemId=' + getVal('mfg-system')
+                    + '&buyingBrokerFee=' + getVal('buy-broker')
+                    + '&sellingBrokerFee=' + getVal('sell-broker')
+                    + '&salesTax=' + getVal('sales-tax')
+                    + '&facilityTax=' + getVal('facility-tax')
+                    + '&sccSurcharge=' + getVal('scc-surcharge')
+                    + '&minIskPerHour=' + getVal('min-isk')
+                    + '&dailyIncomeGoal=' + getVal('daily-goal')
+                    + '&manufacturingSlots=' + getVal('mfg-slots')
+                    + '&useBuyOrders=' + document.getElementById('use-buy-orders').checked
+                    + '&useBuyOrdersForSelling=' + document.getElementById('use-buy-orders-selling').checked
+                    + '&implantTimeReduction=' + getVal('implant-time');
+
+                if (whatIfEnabled) {
+                    params += '&whatIfME=' + meSlider.value + '&whatIfTE=' + teSlider.value;
+                }
+                if (phaseOverride) params += '&phaseOverride=' + phaseOverride;
+                if (simulate) params += '&simulateNextPhase=true';
+
+                var url = baseUrl + '&' + params;
+
+                showLoading(true);
+
+                fetch(url, { credentials: 'same-origin' })
+                    .then(function (res) {
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        if (data.error) { showError(data.error); return; }
+                        currentData = data;
+                        renderAll(data);
+                    })
+                    .catch(function (err) {
+                        showError('Failed to analyze portfolio: ' + err.message);
+                    })
+                    .finally(function () { showLoading(false); });
+            }
+
+            function showLoading(on) {
+                var spinner = document.getElementById('refresh-spinner');
+                var btn = document.getElementById('refresh-btn');
+                if (on) {
+                    spinner.classList.remove('d-none');
+                    btn.disabled = true;
+                } else {
+                    spinner.classList.add('d-none');
+                    btn.disabled = false;
+                }
+            }
+
+            function showError(msg) {
+                var el = document.getElementById('error-alert');
+                el.textContent = msg;
+                el.classList.remove('d-none');
+            }
+
+            // === Rendering ===
+            function esc(str) {
+                var d = document.createElement('div');
+                d.textContent = str || '';
+                return d.innerHTML;
+            }
+
+            function fmtNum(n) { return Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 }); }
+            function fmtDec(n, d) { return Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }); }
+
+            function renderAll(data) {
+                document.getElementById('error-alert').classList.add('d-none');
+                document.getElementById('pre-analysis-placeholder').classList.add('d-none');
+
+                if (data.portfolioSizeWarning) {
+                    document.getElementById('portfolio-warning').classList.remove('d-none');
+                } else {
+                    document.getElementById('portfolio-warning').classList.add('d-none');
+                }
+
+                // Show all result sections
+                document.getElementById('summary-bar').classList.remove('d-none');
+                document.getElementById('phase-roadmap').classList.remove('d-none');
+                document.getElementById('rankings-section').classList.remove('d-none');
+                document.getElementById('bpo-section').classList.remove('d-none');
+                document.getElementById('research-section').classList.remove('d-none');
+
+                // Summary
+                document.getElementById('summary-text').textContent =
+                    data.totalBlueprintsEvaluated + ' blueprints | ' +
+                    data.successCount + ' calculated | ' + data.errorCount + ' errors | ' +
+                    'Phase ' + data.currentPhaseNumber;
+
+                // Show simulate button
+                if (data.currentPhaseNumber < 5) {
+                    document.getElementById('simulate-btn').classList.remove('d-none');
+                }
+
+                renderPhaseRoadmap(data);
+                renderRankings(data.rankings);
+                renderBpoRecommendations(data.bpoRecommendations);
+                renderResearchRecommendations(data.researchRecommendations);
+            }
+
+            function renderPhaseRoadmap(data) {
+                var container = document.getElementById('phase-cards');
+                container.innerHTML = '';
+
+                if (!data.phaseStatuses || data.phaseStatuses.length === 0) {
+                    container.innerHTML = '<span class="text-muted">No phase data available.</span>';
+                    return;
+                }
+
+                data.phaseStatuses.forEach(function (ps) {
+                    var isCurrent = ps.phase.phaseNumber === data.currentPhaseNumber;
+                    var borderClass = ps.isComplete ? 'border-success' : (isCurrent ? 'border-warning' : 'border-secondary');
+                    var bgClass = ps.isComplete ? 'bg-success bg-opacity-10' : '';
+                    var pct = ps.requiredCount > 0 ? Math.min(100, Math.round(ps.ownedProfitableCount / ps.requiredCount * 100)) : 0;
+
+                    var card = '<div class="card ' + borderClass + ' ' + bgClass + '" style="min-width:180px;max-width:220px;background-color:#1a1a2e;">';
+                    card += '<div class="card-body p-2">';
+                    card += '<h6 class="card-title">' + (isCurrent ? '&#9658; ' : '') + esc(ps.phase.name) + '</h6>';
+                    card += '<div class="progress mb-1" style="height:8px;">';
+                    card += '<div class="progress-bar ' + (ps.isComplete ? 'bg-success' : 'bg-warning') + '" style="width:' + pct + '%"></div>';
+                    card += '</div>';
+                    card += '<small>' + ps.ownedProfitableCount + '/' + ps.requiredCount + ' profitable BPs</small>';
+                    if (ps.completionReason) {
+                        var reasonLabel = ps.completionReason === 'exhausted' ? 'all profitable BPOs owned'
+                            : ps.completionReason === 'slots' ? 'slots filled'
+                            : ps.completionReason === 'income' ? 'income goal met'
+                            : ps.completionReason;
+                        card += '<br><small class="text-success">Completed (' + reasonLabel + ')</small>';
+                    }
+                    card += '</div></div>';
+                    container.innerHTML += card;
+                });
+
+                // Show advance button if applicable
+                var advBtn = document.getElementById('advance-phase-btn');
+                if (data.currentPhaseNumber < 5 && !data.phaseOverrideActive) {
+                    advBtn.classList.remove('d-none');
+                } else {
+                    advBtn.classList.add('d-none');
+                }
+            }
+
+            function calcRuns(productionTimeSeconds) {
+                var durationHours = parseFloat(getVal('production-duration')) || 24;
+                var durationSeconds = durationHours * 3600;
+                if (!productionTimeSeconds || productionTimeSeconds <= 0) return 0;
+                // Ceiling production time to whole seconds — EVE rounds job durations up
+                var roundedTime = Math.ceil(productionTimeSeconds);
+                if (roundedTime <= 0) return 0;
+                return Math.ceil(durationSeconds / roundedTime);
+            }
+
+            function renderRankings(rankings) {
+                var body = document.getElementById('rankings-body');
+                if (!rankings || rankings.length === 0) {
+                    body.innerHTML = '<tr><td colspan="8" class="text-muted text-center">No blueprints found. Acquire some blueprints in-game to see rankings.</td></tr>';
+                    return;
+                }
+
+                sortResults(rankings);
+                var html = '';
+                rankings.forEach(function (r) {
+                    var rowClass = '';
+                    if (r.errorMessage) rowClass = ' class="eve-row-warning"';
+                    else if (r.grossProfit > 0 && r.meetsThreshold) rowClass = ' class="eve-row-profit"';
+                    else if (r.grossProfit < 0) rowClass = ' class="eve-row-loss"';
+
+                    var runs = calcRuns(r.productionTimeSeconds);
+
+                    html += '<tr' + rowClass + '>';
+                    html += '<td>' + esc(r.producedTypeName);
+                    if (r.isCurrentPhase) html += ' <span class="badge bg-warning text-dark">Current</span>';
+                    if (r.errorMessage) html += '<br><small class="text-warning">' + esc(r.errorMessage) + '</small>';
+                    html += '</td>';
+                    html += '<td>ME ' + (r.blueprint.materialEfficiency) + ' / TE ' + (r.blueprint.timeEfficiency) + '</td>';
+                    html += '<td>' + (r.phaseNumber || '-') + '</td>';
+                    html += '<td>' + fmtDec(r.profitMarginPercent, 1) + '%</td>';
+                    html += '<td>' + fmtNum(r.iskPerHour) + '</td>';
+                    html += '<td>' + fmtDec(r.averageDailyVolume, 0) + '</td>';
+                    html += '<td>' + (runs > 0 ? runs : '-') + '</td>';
+                    html += '<td><small>Mat: ' + fmtNum(r.materialCost) + ' | Rev: ' + fmtNum(r.productRevenue) + '</small></td>';
+                    html += '</tr>';
+                });
+                body.innerHTML = html;
+            }
+
+            function renderBpoRecommendations(recommendations) {
+                var body = document.getElementById('bpo-body');
+
+                if (!recommendations || recommendations.length === 0) {
+                    body.innerHTML = '<tr><td colspan="8" class="text-muted text-center">No BPO purchase recommendations for the current phase.</td></tr>';
+                    return;
+                }
+
+                var html = '';
+                recommendations.forEach(function (r) {
+                    html += '<tr>';
+                    html += '<td>' + esc(r.blueprintName) + '</td>';
+                    html += '<td>' + esc(r.producedTypeName) + '</td>';
+                    html += '<td>' + r.phaseNumber + '</td>';
+                    html += '<td>' + (r.npcSeededPrice ? fmtNum(r.npcSeededPrice) : 'N/A') + '</td>';
+                    html += '<td>' + (r.playerMarketPrice ? fmtNum(r.playerMarketPrice) : 'N/A') + '</td>';
+                    html += '<td>' + fmtNum(r.projectedIskPerHour) + '</td>';
+                    html += '<td>' + (r.roiPercent ? fmtDec(r.roiPercent, 1) + '%' : 'N/A') + '</td>';
+                    html += '<td>' + (r.paybackPeriodDays ? fmtDec(r.paybackPeriodDays, 1) : 'N/A') + '</td>';
+                    html += '</tr>';
+                });
+                body.innerHTML = html;
+            }
+
+            function renderResearchRecommendations(recommendations) {
+                var body = document.getElementById('research-body');
+
+                if (!recommendations || recommendations.length === 0) {
+                    body.innerHTML = '<tr><td colspan="6" class="text-muted text-center">No research recommendations — all blueprints are at ME 10 / TE 20.</td></tr>';
+                    return;
+                }
+
+                var html = '';
+                recommendations.forEach(function (r) {
+                    html += '<tr>';
+                    html += '<td>' + esc(r.producedTypeName) + '</td>';
+                    html += '<td>ME ' + r.currentME + ' / TE ' + r.currentTE + '</td>';
+                    html += '<td>' + fmtNum(r.currentIskPerHour) + '</td>';
+                    html += '<td>' + fmtNum(r.projectedIskPerHour) + '</td>';
+                    html += '<td>' + fmtNum(r.iskPerHourGain) + '</td>';
+                    html += '<td>' + fmtDec(r.gainPercent, 1) + '%</td>';
+                    html += '</tr>';
+                });
+                body.innerHTML = html;
+            }
+
+            // === Sorting ===
+            function sortResults(results) {
+                results.sort(function (a, b) {
+                    var av = a[currentSort.field] || 0;
+                    var bv = b[currentSort.field] || 0;
+                    return currentSort.desc ? bv - av : av - bv;
+                });
+            }
+
+            document.querySelectorAll('.sortable').forEach(function (th) {
+                th.style.cursor = 'pointer';
+                th.addEventListener('click', function () {
+                    var field = th.getAttribute('data-sort');
+                    if (currentSort.field === field) {
+                        currentSort.desc = !currentSort.desc;
+                    } else {
+                        currentSort.field = field;
+                        currentSort.desc = true;
+                    }
+                    if (currentData && currentData.rankings) {
+                        renderRankings(currentData.rankings);
+                    }
+                });
+            });
+
+            // === Event Handlers ===
+            document.getElementById('refresh-btn').addEventListener('click', function () { fetchData(false); });
+            document.getElementById('simulate-btn').addEventListener('click', function () { fetchData(true); });
+
+            document.getElementById('advance-phase-btn').addEventListener('click', function () {
+                if (!currentData) return;
+                if (!confirm('Advance to Phase ' + (currentData.currentPhaseNumber + 1) + '?')) return;
+                phaseOverride = currentData.currentPhaseNumber + 1;
+                saveConfig();
+                fetchData(false);
+            });
+
+            // === CSV Export ===
+            function csvEscape(val) {
+                if (val == null) return '';
+                var str = String(val);
+                if (str.indexOf(',') !== -1 || str.indexOf('"') !== -1 || str.indexOf('\n') !== -1) {
+                    return '"' + str.replace(/"/g, '""') + '"';
+                }
+                return str;
+            }
+
+            function downloadCsv(filename, headers, rows) {
+                var lines = [headers.map(csvEscape).join(',')];
+                rows.forEach(function (row) {
+                    lines.push(row.map(csvEscape).join(','));
+                });
+                var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                var link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }
+
+            document.getElementById('export-rankings-btn').addEventListener('click', function () {
+                if (!currentData || !currentData.rankings || currentData.rankings.length === 0) return;
+                var headers = ['Product', 'ME', 'TE', 'Phase', 'Profit %', 'ISK/Hour', 'Daily Volume', 'Runs', 'Material Cost', 'Product Revenue', 'Gross Profit', 'Meets Threshold', 'Error'];
+                var rows = currentData.rankings.map(function (r) {
+                    var runs = calcRuns(r.productionTimeSeconds);
+                    return [
+                        r.producedTypeName,
+                        r.blueprint.materialEfficiency,
+                        r.blueprint.timeEfficiency,
+                        r.phaseNumber || '',
+                        r.profitMarginPercent.toFixed(1),
+                        r.iskPerHour.toFixed(0),
+                        r.averageDailyVolume.toFixed(0),
+                        runs > 0 ? runs : '',
+                        r.materialCost.toFixed(0),
+                        r.productRevenue.toFixed(0),
+                        r.grossProfit.toFixed(0),
+                        r.meetsThreshold ? 'Yes' : 'No',
+                        r.errorMessage || ''
+                    ];
+                });
+                downloadCsv('blueprint-rankings.csv', headers, rows);
+            });
+
+            document.getElementById('export-bpo-btn').addEventListener('click', function () {
+                if (!currentData || !currentData.bpoRecommendations || currentData.bpoRecommendations.length === 0) return;
+                var headers = ['Blueprint', 'Product', 'Phase', 'NPC Price', 'Player Price', 'Projected ISK/hr', 'ROI %', 'Payback (days)'];
+                var rows = currentData.bpoRecommendations.map(function (r) {
+                    return [
+                        r.blueprintName,
+                        r.producedTypeName,
+                        r.phaseNumber,
+                        r.npcSeededPrice != null ? r.npcSeededPrice.toFixed(0) : '',
+                        r.playerMarketPrice != null ? r.playerMarketPrice.toFixed(0) : '',
+                        r.projectedIskPerHour.toFixed(0),
+                        r.roiPercent != null ? r.roiPercent.toFixed(1) : '',
+                        r.paybackPeriodDays != null ? r.paybackPeriodDays.toFixed(1) : ''
+                    ];
+                });
+                downloadCsv('bpo-recommendations.csv', headers, rows);
+            });
+
+            document.getElementById('export-research-btn').addEventListener('click', function () {
+                if (!currentData || !currentData.researchRecommendations || currentData.researchRecommendations.length === 0) return;
+                var headers = ['Product', 'Current ME', 'Current TE', 'Current ISK/hr', 'Projected ISK/hr', 'Gain', 'Gain %'];
+                var rows = currentData.researchRecommendations.map(function (r) {
+                    return [
+                        r.producedTypeName,
+                        r.currentME,
+                        r.currentTE,
+                        r.currentIskPerHour.toFixed(0),
+                        r.projectedIskPerHour.toFixed(0),
+                        r.iskPerHourGain.toFixed(0),
+                        r.gainPercent.toFixed(1)
+                    ];
+                });
+                downloadCsv('research-recommendations.csv', headers, rows);
+            });
+
+            // Load saved config — wait for user to click Analyze
+            loadConfig();
+        })();
+    </script>
+}
