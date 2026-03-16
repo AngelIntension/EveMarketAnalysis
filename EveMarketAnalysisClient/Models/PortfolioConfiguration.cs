@@ -17,4 +17,5 @@ public record PortfolioConfiguration(
     int? WhatIfME = null,
     int? WhatIfTE = null,
     bool UseBuyOrdersForMaterials = true,
-    bool UseBuyOrdersForSelling = false);
+    bool UseBuyOrdersForSelling = false,
+    decimal ImplantTimeReductionPercent = 0m);

@@ -23,6 +23,10 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
     private static readonly TimeSpan NameCacheDuration = TimeSpan.FromHours(24);
     private static readonly TimeSpan AnalysisDataCacheDuration = TimeSpan.FromMinutes(5);
 
+    // EVE skill type IDs for manufacturing time reduction
+    private const int IndustrySkillId = 3380;          // 4% per level
+    private const int AdvancedIndustrySkillId = 3388;   // 3% per level
+
     private readonly Lazy<IReadOnlyDictionary<int, ImmutableArray<SkillRequirement>>> _skillRequirements;
 
     public PortfolioAnalyzer(
@@ -69,6 +73,13 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         var adjustedPrices = data.AdjustedPrices;
         var typeNames = data.TypeNames;
 
+        // Compute manufacturing time modifier from character skills
+        // Industry: 4% per level, Advanced Industry: 3% per level (multiplicative)
+        var skillLookup = data.Skills.ToDictionary(s => s.SkillId, s => s.TrainedLevel);
+        var industryLevel = skillLookup.GetValueOrDefault(IndustrySkillId, 0);
+        var advancedIndustryLevel = skillLookup.GetValueOrDefault(AdvancedIndustrySkillId, 0);
+        var skillTimeModifier = (1.0 - 0.04 * industryLevel) * (1.0 - 0.03 * advancedIndustryLevel);
+
         // 7. Calculate rankings
         var rankings = new List<BlueprintRankingEntry>();
         var phases = _phaseService.GetAllPhases();
@@ -82,7 +93,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             {
                 var entry = CalculateRankingEntry(
                     bp, activity, configuration, marketSnapshots, sellingSnapshots,
-                    typeNames, costIndex, adjustedPrices, currentPhaseNumber);
+                    typeNames, costIndex, adjustedPrices, currentPhaseNumber, skillTimeModifier);
                 rankings.Add(entry);
             }
             catch (Exception ex)
@@ -132,7 +143,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         // 11. Generate BPO recommendations
         var bpoRecommendations = await GenerateBpoRecommendationsAsync(
             blueprints, currentPhaseNumber, phases, configuration,
-            marketSnapshots, sellingSnapshots, typeNames, costIndex, adjustedPrices, cancellationToken);
+            marketSnapshots, sellingSnapshots, typeNames, costIndex, adjustedPrices, skillTimeModifier, cancellationToken);
 
         // 12. Re-evaluate phase statuses with exhaustion check using BPO results
         var phaseStatuses = EvaluatePhaseStatuses(sortedRankings, phases, configuration,
@@ -168,7 +179,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
             bpoRecommendations = await GenerateBpoRecommendationsAsync(
                 blueprints, currentPhaseNumber, phases, configuration,
-                marketSnapshots, sellingSnapshots, typeNames, costIndex, adjustedPrices, cancellationToken);
+                marketSnapshots, sellingSnapshots, typeNames, costIndex, adjustedPrices, skillTimeModifier, cancellationToken);
         }
 
         if (simulateNextPhase && currentPhaseNumber < 5)
@@ -177,7 +188,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         // 13. Generate research recommendations
         var researchRecommendations = GenerateResearchRecommendations(
             eligibleBlueprints, configuration, marketSnapshots, sellingSnapshots,
-            typeNames, costIndex, adjustedPrices);
+            typeNames, costIndex, adjustedPrices, skillTimeModifier);
 
         var successCount = sortedRankings.Count(r => r.ErrorMessage == null);
         var errorCount = sortedRankings.Count(r => r.ErrorMessage != null);
@@ -300,14 +311,15 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         Dictionary<int, string> typeNames,
         double costIndex,
         Dictionary<int, decimal> adjustedPrices,
-        int currentPhaseNumber)
+        int currentPhaseNumber,
+        double skillTimeModifier)
     {
         var effectiveME = config.WhatIfME ?? bp.MaterialEfficiency;
         var effectiveTE = config.WhatIfTE ?? bp.TimeEfficiency;
 
         // Use shared calculation for all cost/profit math
         var calc = CalculateDetailed(activity, effectiveME, effectiveTE, config,
-            procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices);
+            procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices, skillTimeModifier);
 
         var iskPerHour = calc.ProductionTimeSeconds > 0
             ? calc.GrossProfit / (decimal)(calc.ProductionTimeSeconds / 3600.0) : 0m;
@@ -420,6 +432,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         Dictionary<int, string> typeNames,
         double costIndex,
         Dictionary<int, decimal> adjustedPrices,
+        double skillTimeModifier,
         CancellationToken cancellationToken)
     {
         var phaseCandidates = _phaseService.GetCandidateTypeIdsForPhase(recommendationPhase);
@@ -493,7 +506,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
             // Calculate projected ISK/hr at ME10/TE20
             var projectedCalc = CalculateDetailed(
-                activity, 10, 20, config, marketSnapshots, costIndex, sellingSnapshots, adjustedPrices);
+                activity, 10, 20, config, marketSnapshots, costIndex, sellingSnapshots, adjustedPrices, skillTimeModifier);
             var projectedIskPerHour = CalculateIskPerHour(projectedCalc);
 
             // Fetch region-wide BPO market data (includes NPC detection via order duration)
@@ -557,7 +570,8 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         Dictionary<int, MarketSnapshot>? sellingSnapshots,
         Dictionary<int, string> typeNames,
         double costIndex,
-        Dictionary<int, decimal> adjustedPrices)
+        Dictionary<int, decimal> adjustedPrices,
+        double skillTimeModifier)
     {
         var recommendations = new List<ResearchRecommendation>();
 
@@ -568,10 +582,10 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
             var currentIskPerHour = CalculateIskPerHour(CalculateDetailed(
                 activity, bp.MaterialEfficiency, bp.TimeEfficiency,
-                config, procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices));
+                config, procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices, skillTimeModifier));
 
             var projectedIskPerHour = CalculateIskPerHour(CalculateDetailed(
-                activity, 10, 20, config, procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices));
+                activity, 10, 20, config, procurementSnapshots, costIndex, sellingSnapshots, adjustedPrices, skillTimeModifier));
 
             var gain = projectedIskPerHour - currentIskPerHour;
             if (gain <= 0) continue;
@@ -620,7 +634,8 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         Dictionary<int, MarketSnapshot> procurementSnapshots,
         double costIndex,
         Dictionary<int, MarketSnapshot>? sellingSnapshots = null,
-        Dictionary<int, decimal>? adjustedPrices = null)
+        Dictionary<int, decimal>? adjustedPrices = null,
+        double skillTimeModifier = 1.0)
     {
         var materialCost = 0m;
         var estimatedItemValue = 0m;
@@ -662,7 +677,8 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         var sccSurcharge = estimatedItemValue * (config.SccSurchargePercent / 100m);
 
         var grossProfit = productRevenue - materialCost - buyingBrokerFee - sellingBrokerFee - salesTax - systemCostFee - facilityTax - sccSurcharge;
-        var productionTimeSeconds = activity.BaseTime * (1.0 - te / 100.0);
+        var implantModifier = 1.0 - (double)config.ImplantTimeReductionPercent / 100.0;
+        var productionTimeSeconds = activity.BaseTime * (1.0 - te / 100.0) * skillTimeModifier * implantModifier;
 
         return new CalculationResult(materialCost, productRevenue, buyingBrokerFee, sellingBrokerFee,
             salesTax, systemCostFee, facilityTax, sccSurcharge, grossProfit, productionTimeSeconds,

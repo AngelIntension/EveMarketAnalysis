@@ -85,6 +85,14 @@ else
                     <label for="daily-goal" class="form-label">Daily Income Goal</label>
                     <input type="number" id="daily-goal" class="form-control" value="750000000" min="0" step="10000000" />
                 </div>
+                <div class="col-md-2">
+                    <label for="implant-time" class="form-label">Implant Time %</label>
+                    <input type="number" id="implant-time" class="form-control" value="0" min="0" max="4" step="1" />
+                </div>
+                <div class="col-md-2">
+                    <label for="production-duration" class="form-label">Production Duration (hrs)</label>
+                    <input type="number" id="production-duration" class="form-control" value="24" min="1" max="8760" step="1" />
+                </div>
             </div>
             <div class="row g-3 mt-1 align-items-end">
                 <div class="col-md-2">
@@ -156,6 +164,7 @@ else
                     <th class="sortable" data-sort="profitMarginPercent">Profit %</th>
                     <th class="sortable" data-sort="iskPerHour">ISK/Hour</th>
                     <th class="sortable" data-sort="averageDailyVolume">Daily Volume</th>
+                    <th>Runs</th>
                     <th>Costs</th>
                 </tr>
             </thead>
@@ -241,6 +250,8 @@ else
                     if (config.useBuyOrdersForSelling === true) document.getElementById('use-buy-orders-selling').checked = true;
                     if (config.minIskPerHour != null) setVal('min-isk', config.minIskPerHour);
                     if (config.dailyIncomeGoal != null) setVal('daily-goal', config.dailyIncomeGoal);
+                    if (config.implantTimeReduction != null) setVal('implant-time', config.implantTimeReduction);
+                    if (config.productionDuration != null) setVal('production-duration', config.productionDuration);
                     if (config.phaseOverride) phaseOverride = config.phaseOverride;
                 } catch (e) { /* ignore corrupt storage */ }
             }
@@ -261,6 +272,8 @@ else
                     useBuyOrdersForSelling: document.getElementById('use-buy-orders-selling').checked,
                     minIskPerHour: getVal('min-isk'),
                     dailyIncomeGoal: getVal('daily-goal'),
+                    implantTimeReduction: getVal('implant-time'),
+                    productionDuration: getVal('production-duration'),
                     phaseOverride: phaseOverride
                 };
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
@@ -362,7 +375,8 @@ else
                     + '&dailyIncomeGoal=' + getVal('daily-goal')
                     + '&manufacturingSlots=' + getVal('mfg-slots')
                     + '&useBuyOrders=' + document.getElementById('use-buy-orders').checked
-                    + '&useBuyOrdersForSelling=' + document.getElementById('use-buy-orders-selling').checked;
+                    + '&useBuyOrdersForSelling=' + document.getElementById('use-buy-orders-selling').checked
+                    + '&implantTimeReduction=' + getVal('implant-time');
 
                 if (whatIfEnabled) {
                     params += '&whatIfME=' + meSlider.value + '&whatIfTE=' + teSlider.value;
@@ -494,10 +508,20 @@ else
                 }
             }
 
+            function calcRuns(productionTimeSeconds) {
+                var durationHours = parseFloat(getVal('production-duration')) || 24;
+                var durationSeconds = durationHours * 3600;
+                if (!productionTimeSeconds || productionTimeSeconds <= 0) return 0;
+                // Ceiling production time to whole seconds — EVE rounds job durations up
+                var roundedTime = Math.ceil(productionTimeSeconds);
+                if (roundedTime <= 0) return 0;
+                return Math.ceil(durationSeconds / roundedTime);
+            }
+
             function renderRankings(rankings) {
                 var body = document.getElementById('rankings-body');
                 if (!rankings || rankings.length === 0) {
-                    body.innerHTML = '<tr><td colspan="7" class="text-muted text-center">No blueprints found. Acquire some blueprints in-game to see rankings.</td></tr>';
+                    body.innerHTML = '<tr><td colspan="8" class="text-muted text-center">No blueprints found. Acquire some blueprints in-game to see rankings.</td></tr>';
                     return;
                 }
 
@@ -509,6 +533,8 @@ else
                     else if (r.grossProfit > 0 && r.meetsThreshold) rowClass = ' class="eve-row-profit"';
                     else if (r.grossProfit < 0) rowClass = ' class="eve-row-loss"';
 
+                    var runs = calcRuns(r.productionTimeSeconds);
+
                     html += '<tr' + rowClass + '>';
                     html += '<td>' + esc(r.producedTypeName);
                     if (r.isCurrentPhase) html += ' <span class="badge bg-warning text-dark">Current</span>';
@@ -519,6 +545,7 @@ else
                     html += '<td>' + fmtDec(r.profitMarginPercent, 1) + '%</td>';
                     html += '<td>' + fmtNum(r.iskPerHour) + '</td>';
                     html += '<td>' + fmtDec(r.averageDailyVolume, 0) + '</td>';
+                    html += '<td>' + (runs > 0 ? runs : '-') + '</td>';
                     html += '<td><small>Mat: ' + fmtNum(r.materialCost) + ' | Rev: ' + fmtNum(r.productRevenue) + '</small></td>';
                     html += '</tr>';
                 });
@@ -633,8 +660,9 @@ else
 
             document.getElementById('export-rankings-btn').addEventListener('click', function () {
                 if (!currentData || !currentData.rankings || currentData.rankings.length === 0) return;
-                var headers = ['Product', 'ME', 'TE', 'Phase', 'Profit %', 'ISK/Hour', 'Daily Volume', 'Material Cost', 'Product Revenue', 'Gross Profit', 'Meets Threshold', 'Error'];
+                var headers = ['Product', 'ME', 'TE', 'Phase', 'Profit %', 'ISK/Hour', 'Daily Volume', 'Runs', 'Material Cost', 'Product Revenue', 'Gross Profit', 'Meets Threshold', 'Error'];
                 var rows = currentData.rankings.map(function (r) {
+                    var runs = calcRuns(r.productionTimeSeconds);
                     return [
                         r.producedTypeName,
                         r.blueprint.materialEfficiency,
@@ -643,6 +671,7 @@ else
                         r.profitMarginPercent.toFixed(1),
                         r.iskPerHour.toFixed(0),
                         r.averageDailyVolume.toFixed(0),
+                        runs > 0 ? runs : '',
                         r.materialCost.toFixed(0),
                         r.productRevenue.toFixed(0),
                         r.grossProfit.toFixed(0),
