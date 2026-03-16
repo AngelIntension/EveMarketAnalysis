@@ -181,11 +181,41 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         var phaseStatuses = EvaluatePhaseStatuses(sortedRankings, phases, configuration,
             bpoRecommendations, currentPhaseNumber);
 
-        // If current phase is now exhausted, advance and note it
+        // If current phase is now exhausted, advance and regenerate BPO recommendations for new phase
         var finalPhaseNumber = DetermineCurrentPhase(phaseStatuses, phaseOverride);
-        if (simulateNextPhase && finalPhaseNumber < 5)
-            finalPhaseNumber++;
-        currentPhaseNumber = finalPhaseNumber;
+        if (finalPhaseNumber != currentPhaseNumber)
+        {
+            currentPhaseNumber = finalPhaseNumber;
+
+            // Resolve names for new phase candidates
+            var newPhaseCandidates = _phaseService.GetCandidateTypeIdsForPhase(currentPhaseNumber);
+            if (newPhaseCandidates.Length > 0)
+            {
+                var newBpoTypeIds = new HashSet<int>();
+                var newCount = 0;
+                foreach (var candidateId in newPhaseCandidates)
+                {
+                    if (newCount >= 100) break;
+                    if (!ownedTypeIdSet.Contains(candidateId))
+                    {
+                        newBpoTypeIds.Add(candidateId);
+                        var act = _blueprintData.GetBlueprintActivity(candidateId);
+                        if (act != null)
+                            newBpoTypeIds.Add(act.ProducedTypeId);
+                        newCount++;
+                    }
+                }
+                if (newBpoTypeIds.Count > 0)
+                    await ResolveTypeNamesAsync(newBpoTypeIds, cancellationToken);
+            }
+
+            bpoRecommendations = await GenerateBpoRecommendationsAsync(
+                blueprints, currentPhaseNumber, phases, configuration,
+                marketSnapshots, typeNames, costIndex, adjustedPrices, cancellationToken);
+        }
+
+        if (simulateNextPhase && currentPhaseNumber < 5)
+            currentPhaseNumber++;
 
         // 13. Generate research recommendations
         var researchRecommendations = GenerateResearchRecommendations(
@@ -303,7 +333,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
             return new PhaseStatus(
                 Phase: phase,
-                OwnedProfitableCount: ownedProfitable,
+                OwnedProfitableCount: ownedProfitableAny,
                 RequiredCount: requiredCount,
                 IsComplete: isComplete,
                 DailyPotentialIncome: dailyIncome,
@@ -351,6 +381,25 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
         if (unownedTypeIds.Count == 0)
             return ImmutableArray<BpoPurchaseRecommendation>.Empty;
+
+        // Fetch market data for unowned candidates' materials and products
+        var additionalTypeIds = new HashSet<int>();
+        foreach (var bpTypeId in unownedTypeIds)
+        {
+            var act = _blueprintData.GetBlueprintActivity(bpTypeId);
+            if (act == null) continue;
+            additionalTypeIds.Add(act.ProducedTypeId);
+            foreach (var mat in act.Materials)
+                additionalTypeIds.Add(mat.TypeId);
+        }
+        var missingTypeIds = new HashSet<int>(additionalTypeIds.Where(id => !marketSnapshots.ContainsKey(id)));
+        if (missingTypeIds.Count > 0)
+        {
+            var additionalSnapshots = await FetchMarketSnapshotsAsync(
+                missingTypeIds, config.ProcurementRegionId, cancellationToken);
+            foreach (var (id, snapshot) in additionalSnapshots)
+                marketSnapshots.TryAdd(id, snapshot);
+        }
 
         var recommendations = new List<BpoPurchaseRecommendation>();
         foreach (var bpTypeId in unownedTypeIds)
