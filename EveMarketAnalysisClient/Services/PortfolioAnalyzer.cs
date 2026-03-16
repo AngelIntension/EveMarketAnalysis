@@ -280,16 +280,16 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             var phaseRankings = rankings.Where(r =>
                 r.PhaseNumber == phase.PhaseNumber && r.HasMarketData && r.ErrorMessage == null);
 
-            var ownedInPhase = phaseRankings.Count();
+            var ownedProfitableAny = phaseRankings.Count(r => r.HasMarketData && r.IskPerHour > 0);
             var ownedProfitable = phaseRankings.Count(r => r.MeetsThreshold);
             var dailyIncome = phaseRankings
                 .Where(r => r.MeetsThreshold)
                 .Sum(r => r.IskPerHour * 24m);
 
             // Phase is exhausted if we evaluated BPO recommendations for it
-            // and found zero profitable unowned BPOs (user owns at least some BPs in this phase)
+            // and found zero profitable unowned BPOs (user owns at least some profitable BPs)
             var isPhaseExhausted = phase.PhaseNumber == bpoRecommendationPhase
-                && ownedInPhase > 0
+                && ownedProfitableAny > 0
                 && !bpoRecommendations.Any(r => r.HasMarketData && r.ProjectedIskPerHour >= config.MinIskPerHour);
 
             var isSlotComplete = ownedProfitable >= requiredCount;
