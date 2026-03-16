@@ -79,6 +79,10 @@ public class BpoRecommendationTests
                 new PhaseDefinition(3, "Phase 3", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "Phase 4", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "Phase 5", "Test", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(1))
+            .Returns(ImmutableArray.Create(100, 101));
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var config = new PortfolioConfiguration();
@@ -129,6 +133,10 @@ public class BpoRecommendationTests
                 new PhaseDefinition(3, "Phase 3", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "Phase 4", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "Phase 5", "Test", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(1))
+            .Returns(ImmutableArray.Create(100, 101));
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var config = new PortfolioConfiguration();
@@ -162,6 +170,8 @@ public class BpoRecommendationTests
                 new PhaseDefinition(3, "P3", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "P4", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "P5", "T", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var config = new PortfolioConfiguration();

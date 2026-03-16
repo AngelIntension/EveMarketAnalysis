@@ -2,60 +2,28 @@
   "phases": [
     {
       "phaseNumber": 1,
-      "name": "T1 Frigate Foundation",
-      "description": "Tech 1 frigates, small weapons, modules, and ammunition",
-      "candidateTypeIds": [
-        683, 684, 685, 689, 690, 691, 936, 937, 938, 939, 940, 941, 944, 945,
-        955, 956, 2162, 2835,
-        804, 835, 836, 838, 896, 897, 898, 899, 900, 901, 902,
-        812, 879, 880, 881, 882, 883, 884, 885, 886, 887, 888,
-        810, 889, 891
-      ]
+      "name": "Small Items & Ammo",
+      "description": "Quick builds: ammo, charges, small modules, and simple items (build time under 15 min)"
     },
     {
       "phaseNumber": 2,
-      "name": "T1 Destroyer Expansion",
-      "description": "Tech 1 destroyers with small modules and rigs",
-      "candidateTypeIds": [
-        686, 687, 692, 968, 969, 970, 971, 972,
-        805, 806, 807, 808, 809, 811, 813, 814,
-        788, 824, 825, 826, 839, 840, 841, 842
-      ]
+      "name": "Frigates & Components",
+      "description": "T1 frigates, destroyers, drones, and mid-complexity modules (build time 15 min to 2 hours)"
     },
     {
       "phaseNumber": 3,
-      "name": "Cruiser & Battlecruiser Operations",
-      "description": "Tech 1 cruisers, battlecruisers, and medium-sized modules",
-      "candidateTypeIds": [
-        946, 949, 950, 952, 954,
-        973, 974, 975, 976, 977, 978, 979, 983, 984, 985, 986, 987, 988, 989, 990, 991, 992,
-        827, 828, 843, 1026, 1033,
-        790, 829, 844
-      ]
+      "name": "Cruisers & Battlecruisers",
+      "description": "Cruiser and battlecruiser hulls with medium modules (build time 2 to 6 hours)"
     },
     {
       "phaseNumber": 4,
-      "name": "Battleship Manufacturing",
-      "description": "Tech 1 battleships with large modules and ammunition",
-      "candidateTypeIds": [
-        688, 693, 994, 995, 996, 997, 998, 999,
-        17637, 17727, 17729, 17733,
-        24689, 24691, 24693, 24695,
-        32306, 32308, 32310, 32312
-      ]
+      "name": "Battleships & Large Items",
+      "description": "Battleship hulls, large modules, and complex items (build time 6 to 24 hours)"
     },
     {
       "phaseNumber": 5,
-      "name": "Capital & T2 Production",
-      "description": "Capital ships and Tech 2 entry-level items",
-      "candidateTypeIds": [
-        1002,
-        34841, 34842, 34843, 34844, 34845, 34846, 34847, 34848, 34849,
-        34850, 34851, 34852, 34853, 34854,
-        34855, 34856, 34857, 34858, 34859, 34860, 34861, 34862, 34863, 34864,
-        34866, 34867, 34868, 34869,
-        3515, 3517, 3519, 3535, 3537, 3543, 3545, 3547
-      ]
+      "name": "Capitals & Advanced",
+      "description": "Capital ships, T2 components, and advanced manufacturing (build time over 24 hours)"
     }
   ]
 }

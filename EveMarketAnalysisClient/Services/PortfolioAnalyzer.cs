@@ -153,20 +153,23 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         if (simulateNextPhase && currentPhaseNumber < 5)
             currentPhaseNumber++;
 
-        // 11. Resolve names for BPO recommendation candidates
-        var recommendationPhase = phases.FirstOrDefault(p => p.PhaseNumber == currentPhaseNumber);
-        if (recommendationPhase != null)
+        // 11. Resolve names for BPO recommendation candidates (capped to 100)
+        var phaseCandidates = _phaseService.GetCandidateTypeIdsForPhase(currentPhaseNumber);
+        if (phaseCandidates.Length > 0)
         {
             var bpoTypeIds = new HashSet<int>();
             var ownedTypeIdSet = blueprints.Select(b => b.TypeId).ToHashSet();
-            foreach (var candidateId in recommendationPhase.CandidateTypeIds)
+            var count = 0;
+            foreach (var candidateId in phaseCandidates)
             {
+                if (count >= 100) break;
                 if (!ownedTypeIdSet.Contains(candidateId))
                 {
                     bpoTypeIds.Add(candidateId);
                     var act = _blueprintData.GetBlueprintActivity(candidateId);
                     if (act != null)
                         bpoTypeIds.Add(act.ProducedTypeId);
+                    count++;
                 }
             }
             if (bpoTypeIds.Count > 0)
@@ -371,12 +374,15 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         Dictionary<int, decimal> adjustedPrices,
         CancellationToken cancellationToken)
     {
-        var phase = phases.FirstOrDefault(p => p.PhaseNumber == recommendationPhase);
-        if (phase == null)
+        var phaseCandidates = _phaseService.GetCandidateTypeIdsForPhase(recommendationPhase);
+        if (phaseCandidates.IsEmpty)
             return ImmutableArray<BpoPurchaseRecommendation>.Empty;
 
         var ownedTypeIds = ownedBlueprints.Select(b => b.TypeId).ToHashSet();
-        var unownedTypeIds = phase.CandidateTypeIds.Where(id => !ownedTypeIds.Contains(id)).ToList();
+        var unownedTypeIds = phaseCandidates
+            .Where(id => !ownedTypeIds.Contains(id))
+            .Take(100) // Cap to avoid excessive API calls
+            .ToList();
 
         if (unownedTypeIds.Count == 0)
             return ImmutableArray<BpoPurchaseRecommendation>.Empty;

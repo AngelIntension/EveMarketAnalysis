@@ -57,6 +57,8 @@ public class PortfolioEdgeCaseTests
                 new PhaseDefinition(3, "P3", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "P4", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "P5", "T", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
 
         var analyzer = CreateAnalyzer(characterClient: characterClient, phaseService: phaseService);
         var result = await analyzer.AnalyzeAsync(12345, new PortfolioConfiguration());
@@ -99,6 +101,8 @@ public class PortfolioEdgeCaseTests
                 new PhaseDefinition(3, "P3", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "P4", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "P5", "T", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var result = await analyzer.AnalyzeAsync(12345, new PortfolioConfiguration());
@@ -139,6 +143,8 @@ public class PortfolioEdgeCaseTests
                 new PhaseDefinition(3, "P3", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "P4", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "P5", "T", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var result = await analyzer.AnalyzeAsync(12345, new PortfolioConfiguration());

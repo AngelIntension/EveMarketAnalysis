@@ -126,6 +126,8 @@ public class PortfolioAnalyzerTests
                 new PhaseDefinition(3, "Cruiser", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "Battleship", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "Capital", "Test", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
     }
 
     // === T016: ISK/hr Calculation Tests ===
@@ -279,6 +281,8 @@ public class PortfolioAnalyzerTests
                 new PhaseDefinition(3, "T3", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "T4", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "T5", "Test", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var config = new PortfolioConfiguration();
@@ -324,6 +328,8 @@ public class PortfolioAnalyzerTests
                 new PhaseDefinition(3, "T3", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "T4", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "Capital", "Test", ImmutableArray.Create(1002))));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var config = new PortfolioConfiguration();
@@ -363,6 +369,8 @@ public class PortfolioAnalyzerTests
                 new PhaseDefinition(3, "T3", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "T4", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "T5", "Test", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var config = new PortfolioConfiguration();
@@ -455,6 +463,8 @@ public class PortfolioAnalyzerTests
                 new PhaseDefinition(3, "T3", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "T4", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "T5", "Test", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var config = new PortfolioConfiguration();
@@ -487,6 +497,8 @@ public class PortfolioAnalyzerTests
                 new PhaseDefinition(3, "T3", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "T4", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "T5", "Test", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
 
         var analyzer = CreateAnalyzer(blueprintData, marketClient, characterClient, phaseService);
         var config = new PortfolioConfiguration();

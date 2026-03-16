@@ -80,6 +80,8 @@ public class ResearchRecommendationTests
                 new PhaseDefinition(3, "T3", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "T4", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "T5", "T", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
     }
 
     [Fact]

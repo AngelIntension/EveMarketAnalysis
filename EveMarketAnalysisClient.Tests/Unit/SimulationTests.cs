@@ -73,6 +73,8 @@ public class SimulationTests
                 new PhaseDefinition(3, "Phase 3", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "Phase 4", "T", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "Phase 5", "T", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
     }
 
     [Fact]

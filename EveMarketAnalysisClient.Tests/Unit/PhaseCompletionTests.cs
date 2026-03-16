@@ -93,6 +93,8 @@ public class PhaseCompletionTests
                 new PhaseDefinition(3, "Phase 3", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(4, "Phase 4", "Test", ImmutableArray<int>.Empty),
                 new PhaseDefinition(5, "Phase 5", "Test", ImmutableArray<int>.Empty)));
+        phaseService.Setup(p => p.GetCandidateTypeIdsForPhase(It.IsAny<int>()))
+            .Returns(ImmutableArray<int>.Empty);
     }
 
     // === T028: Phase completion trigger tests ===
