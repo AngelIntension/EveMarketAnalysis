@@ -153,11 +153,15 @@ else
     <div id="rankings-section" class="d-none">
         <div class="d-flex justify-content-between align-items-center">
             <h4>Blueprint Rankings</h4>
-            <button id="export-rankings-btn" class="btn btn-sm btn-outline-secondary" type="button">Export CSV</button>
+            <div class="d-flex gap-2">
+                <button id="export-to-planner" class="btn btn-sm btn-outline-success" type="button" disabled title="Select blueprints to export">Export to Planner</button>
+                <button id="export-rankings-btn" class="btn btn-sm btn-outline-secondary" type="button">Export CSV</button>
+            </div>
         </div>
         <table class="table">
             <thead>
                 <tr>
+                    <th style="width:30px"><input type="checkbox" id="select-all-rankings" class="form-check-input" title="Select All" /></th>
                     <th>Product</th>
                     <th>ME/TE</th>
                     <th>Phase</th>
@@ -227,6 +231,7 @@ else
             var currentSort = { field: 'iskPerHour', desc: true };
             var whatIfEnabled = false;
             var phaseOverride = null;
+            var checkedTypeIds = new Set();
 
             // === Local Storage ===
             var STORAGE_KEY = 'portfolioConfig';
@@ -521,7 +526,7 @@ else
             function renderRankings(rankings) {
                 var body = document.getElementById('rankings-body');
                 if (!rankings || rankings.length === 0) {
-                    body.innerHTML = '<tr><td colspan="8" class="text-muted text-center">No blueprints found. Acquire some blueprints in-game to see rankings.</td></tr>';
+                    body.innerHTML = '<tr><td colspan="9" class="text-muted text-center">No blueprints found. Acquire some blueprints in-game to see rankings.</td></tr>';
                     return;
                 }
 
@@ -534,8 +539,11 @@ else
                     else if (r.grossProfit < 0) rowClass = ' class="eve-row-loss"';
 
                     var runs = calcRuns(r.productionTimeSeconds);
+                    var typeId = r.blueprint.typeId;
+                    var checked = checkedTypeIds.has(typeId) ? ' checked' : '';
 
                     html += '<tr' + rowClass + '>';
+                    html += '<td><input type="checkbox" class="ranking-check form-check-input" data-typeid="' + typeId + '" data-name="' + esc(r.producedTypeName) + '" data-runs="' + (runs > 0 ? runs : 1) + '"' + checked + ' /></td>';
                     html += '<td>' + esc(r.producedTypeName);
                     if (r.isCurrentPhase) html += ' <span class="badge bg-warning text-dark">Current</span>';
                     if (r.errorMessage) html += '<br><small class="text-warning">' + esc(r.errorMessage) + '</small>';
@@ -550,6 +558,7 @@ else
                     html += '</tr>';
                 });
                 body.innerHTML = html;
+                updateExportButton();
             }
 
             function renderBpoRecommendations(recommendations) {
@@ -715,6 +724,82 @@ else
                     ];
                 });
                 downloadCsv('research-recommendations.csv', headers, rows);
+            });
+
+            // === Export to Planner ===
+            function updateExportButton() {
+                var count = document.querySelectorAll('.ranking-check:checked').length;
+                var btn = document.getElementById('export-to-planner');
+                btn.disabled = count === 0;
+                btn.textContent = count > 0 ? 'Export ' + count + ' to Planner' : 'Export to Planner';
+            }
+
+            document.getElementById('rankings-body').addEventListener('change', function (e) {
+                if (e.target.classList.contains('ranking-check')) {
+                    var typeId = parseInt(e.target.getAttribute('data-typeid'));
+                    if (e.target.checked) {
+                        checkedTypeIds.add(typeId);
+                    } else {
+                        checkedTypeIds.delete(typeId);
+                    }
+                    updateExportButton();
+                    // Sync select-all state
+                    var allChecks = document.querySelectorAll('.ranking-check');
+                    var allChecked = document.querySelectorAll('.ranking-check:checked');
+                    document.getElementById('select-all-rankings').checked = allChecks.length > 0 && allChecks.length === allChecked.length;
+                }
+            });
+
+            document.getElementById('select-all-rankings').addEventListener('change', function () {
+                var checked = this.checked;
+                document.querySelectorAll('.ranking-check').forEach(function (cb) {
+                    cb.checked = checked;
+                    var typeId = parseInt(cb.getAttribute('data-typeid'));
+                    if (checked) {
+                        checkedTypeIds.add(typeId);
+                    } else {
+                        checkedTypeIds.delete(typeId);
+                    }
+                });
+                updateExportButton();
+            });
+
+            function isLocalStorageAvailable() {
+                try {
+                    var testKey = '__ls_test__';
+                    localStorage.setItem(testKey, '1');
+                    localStorage.removeItem(testKey);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            document.getElementById('export-to-planner').addEventListener('click', function () {
+                var checks = document.querySelectorAll('.ranking-check:checked');
+                if (checks.length === 0) return;
+
+                if (!isLocalStorageAvailable()) {
+                    showError('Cannot export: browser storage is unavailable');
+                    return;
+                }
+
+                var items = [];
+                checks.forEach(function (cb) {
+                    var typeId = parseInt(cb.getAttribute('data-typeid'));
+                    var name = cb.getAttribute('data-name') || '';
+                    var runs = Math.max(1, parseInt(cb.getAttribute('data-runs')) || 1);
+                    items.push({ typeId: typeId, name: name, runs: runs });
+                });
+
+                try {
+                    localStorage.setItem('pendingProductionBatch', JSON.stringify({ items: items }));
+                } catch (e) {
+                    showError('Cannot export: browser storage is unavailable');
+                    return;
+                }
+
+                window.open('/productionplanner', '_blank');
             });
 
             // Load saved config — wait for user to click Analyze

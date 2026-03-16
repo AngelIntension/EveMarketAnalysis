@@ -198,6 +198,7 @@ else
                 }
                 list.innerHTML = html;
                 updateButtonStates();
+                importFromOptimizer();
             }
 
             // --- Search Filter ---
@@ -675,6 +676,58 @@ else
                     return response;
                 });
             };
+
+            // --- Import from Optimizer ---
+            // Import merges with existing selections (FR-013): only touched blueprints are modified
+            function importFromOptimizer() {
+                var raw = null;
+                try {
+                    raw = localStorage.getItem('pendingProductionBatch');
+                } catch (e) { return; }
+                if (!raw) return;
+
+                var payload;
+                try {
+                    payload = JSON.parse(raw);
+                } catch (e) {
+                    try { localStorage.removeItem('pendingProductionBatch'); } catch (ex) { /* ignore */ }
+                    return;
+                }
+
+                if (!payload || !payload.items || !Array.isArray(payload.items)) {
+                    try { localStorage.removeItem('pendingProductionBatch'); } catch (ex) { /* ignore */ }
+                    return;
+                }
+
+                var matched = 0;
+                for (var i = 0; i < payload.items.length; i++) {
+                    var item = payload.items[i];
+                    var checkbox = document.querySelector('.bp-check[data-typeid="' + item.typeId + '"]');
+                    if (!checkbox) continue;
+                    checkbox.checked = true;
+                    var runsInput = document.querySelector('.bp-runs[data-typeid="' + item.typeId + '"]');
+                    if (runsInput) runsInput.value = item.runs;
+                    matched++;
+                }
+
+                try { localStorage.removeItem('pendingProductionBatch'); } catch (ex) { /* ignore */ }
+
+                if (matched > 0) {
+                    updateButtonStates();
+                    showImportNotification(matched);
+                }
+            }
+
+            function showImportNotification(count) {
+                var list = document.getElementById('blueprint-list');
+                var alert = document.createElement('div');
+                alert.className = 'alert alert-info alert-dismissible fade show mb-2';
+                alert.style.cssText = 'background-color:#1a3a5c;border-color:#2d5a8c;color:#c8d8e8;font-size:0.85em;';
+                alert.innerHTML = 'Imported ' + count + ' blueprint' + (count !== 1 ? 's' : '') + ' from Optimizer '
+                    + '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" style="font-size:0.7em;"></button>';
+                list.parentNode.insertBefore(alert, list);
+                setTimeout(function () { if (alert.parentNode) alert.remove(); }, 5000);
+            }
 
             // --- Init ---
             fetchBlueprints();
