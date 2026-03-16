@@ -58,6 +58,7 @@ public class PortfolioOptimizerModel : PageModel
         int? whatIfME = null,
         int? whatIfTE = null,
         bool useBuyOrders = true,
+        bool useBuyOrdersForSelling = false,
         int? phaseOverride = null,
         bool simulateNextPhase = false,
         CancellationToken cancellationToken = default)
@@ -112,7 +113,8 @@ public class PortfolioOptimizerModel : PageModel
                 ManufacturingSlots: manufacturingSlots,
                 WhatIfME: whatIfME,
                 WhatIfTE: whatIfTE,
-                UseBuyOrdersForMaterials: useBuyOrders);
+                UseBuyOrdersForMaterials: useBuyOrders,
+                UseBuyOrdersForSelling: useBuyOrdersForSelling);
 
             var result = await _analyzer.AnalyzeAsync(
                 characterId, configuration, phaseOverride, simulateNextPhase, cancellationToken);

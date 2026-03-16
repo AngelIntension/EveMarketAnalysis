@@ -107,6 +107,10 @@ else
                             <input class="form-check-input" type="checkbox" id="use-buy-orders" checked />
                             <label class="form-check-label" for="use-buy-orders">Buy orders for mats</label>
                         </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="use-buy-orders-selling" />
+                            <label class="form-check-label" for="use-buy-orders-selling">Buy orders for sales</label>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-4 d-flex align-items-end gap-2">
@@ -118,6 +122,11 @@ else
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Pre-analysis placeholder -->
+    <div id="pre-analysis-placeholder" class="text-muted text-center py-5">
+        Configure your settings above and click <strong>Analyze</strong> to begin.
     </div>
 
     <!-- Summary Bar -->
@@ -133,7 +142,7 @@ else
     </div>
 
     <!-- Rankings Table -->
-    <div id="rankings-section">
+    <div id="rankings-section" class="d-none">
         <h4>Blueprint Rankings</h4>
         <table class="table">
             <thead>
@@ -147,11 +156,7 @@ else
                     <th>Costs</th>
                 </tr>
             </thead>
-            <tbody id="rankings-body">
-                <tr>
-                    <td colspan="7" class="text-muted text-center">Configure your settings above and click Analyze to begin.</td>
-                </tr>
-            </tbody>
+            <tbody id="rankings-body"></tbody>
         </table>
     </div>
 
@@ -224,6 +229,7 @@ else
                     if (config.facilityTax != null) setVal('facility-tax', config.facilityTax);
                     if (config.sccSurcharge != null) setVal('scc-surcharge', config.sccSurcharge);
                     if (config.useBuyOrders === false) document.getElementById('use-buy-orders').checked = false;
+                    if (config.useBuyOrdersForSelling === true) document.getElementById('use-buy-orders-selling').checked = true;
                     if (config.minIskPerHour != null) setVal('min-isk', config.minIskPerHour);
                     if (config.dailyIncomeGoal != null) setVal('daily-goal', config.dailyIncomeGoal);
                     if (config.phaseOverride) phaseOverride = config.phaseOverride;
@@ -243,6 +249,7 @@ else
                     facilityTax: getVal('facility-tax'),
                     sccSurcharge: getVal('scc-surcharge'),
                     useBuyOrders: document.getElementById('use-buy-orders').checked,
+                    useBuyOrdersForSelling: document.getElementById('use-buy-orders-selling').checked,
                     minIskPerHour: getVal('min-isk'),
                     dailyIncomeGoal: getVal('daily-goal'),
                     phaseOverride: phaseOverride
@@ -345,7 +352,8 @@ else
                     + '&minIskPerHour=' + getVal('min-isk')
                     + '&dailyIncomeGoal=' + getVal('daily-goal')
                     + '&manufacturingSlots=' + getVal('mfg-slots')
-                    + '&useBuyOrders=' + document.getElementById('use-buy-orders').checked;
+                    + '&useBuyOrders=' + document.getElementById('use-buy-orders').checked
+                    + '&useBuyOrdersForSelling=' + document.getElementById('use-buy-orders-selling').checked;
 
                 if (whatIfEnabled) {
                     params += '&whatIfME=' + meSlider.value + '&whatIfTE=' + teSlider.value;
@@ -403,6 +411,7 @@ else
 
             function renderAll(data) {
                 document.getElementById('error-alert').classList.add('d-none');
+                document.getElementById('pre-analysis-placeholder').classList.add('d-none');
 
                 if (data.portfolioSizeWarning) {
                     document.getElementById('portfolio-warning').classList.remove('d-none');
@@ -410,9 +419,14 @@ else
                     document.getElementById('portfolio-warning').classList.add('d-none');
                 }
 
+                // Show all result sections
+                document.getElementById('summary-bar').classList.remove('d-none');
+                document.getElementById('phase-roadmap').classList.remove('d-none');
+                document.getElementById('rankings-section').classList.remove('d-none');
+                document.getElementById('bpo-section').classList.remove('d-none');
+                document.getElementById('research-section').classList.remove('d-none');
+
                 // Summary
-                var sumBar = document.getElementById('summary-bar');
-                sumBar.classList.remove('d-none');
                 document.getElementById('summary-text').textContent =
                     data.totalBlueprintsEvaluated + ' blueprints | ' +
                     data.successCount + ' calculated | ' + data.errorCount + ' errors | ' +
@@ -430,12 +444,13 @@ else
             }
 
             function renderPhaseRoadmap(data) {
-                var section = document.getElementById('phase-roadmap');
-                section.classList.remove('d-none');
                 var container = document.getElementById('phase-cards');
                 container.innerHTML = '';
 
-                if (!data.phaseStatuses || data.phaseStatuses.length === 0) return;
+                if (!data.phaseStatuses || data.phaseStatuses.length === 0) {
+                    container.innerHTML = '<span class="text-muted">No phase data available.</span>';
+                    return;
+                }
 
                 data.phaseStatuses.forEach(function (ps) {
                     var isCurrent = ps.phase.phaseNumber === data.currentPhaseNumber;
@@ -502,15 +517,13 @@ else
             }
 
             function renderBpoRecommendations(recommendations) {
-                var section = document.getElementById('bpo-section');
                 var body = document.getElementById('bpo-body');
 
                 if (!recommendations || recommendations.length === 0) {
-                    section.classList.add('d-none');
+                    body.innerHTML = '<tr><td colspan="8" class="text-muted text-center">No BPO purchase recommendations for the current phase.</td></tr>';
                     return;
                 }
 
-                section.classList.remove('d-none');
                 var html = '';
                 recommendations.forEach(function (r) {
                     html += '<tr>';
@@ -528,15 +541,13 @@ else
             }
 
             function renderResearchRecommendations(recommendations) {
-                var section = document.getElementById('research-section');
                 var body = document.getElementById('research-body');
 
                 if (!recommendations || recommendations.length === 0) {
-                    section.classList.add('d-none');
+                    body.innerHTML = '<tr><td colspan="6" class="text-muted text-center">No research recommendations — all blueprints are at ME 10 / TE 20.</td></tr>';
                     return;
                 }
 
-                section.classList.remove('d-none');
                 var html = '';
                 recommendations.forEach(function (r) {
                     html += '<tr>';

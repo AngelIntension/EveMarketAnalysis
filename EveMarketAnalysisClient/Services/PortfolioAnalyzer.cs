@@ -21,6 +21,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
     private static readonly SemaphoreSlim ConcurrencyLimiter = new(20, 20);
     private static readonly TimeSpan CostIndexCacheDuration = TimeSpan.FromHours(1);
     private static readonly TimeSpan NameCacheDuration = TimeSpan.FromHours(24);
+    private static readonly TimeSpan AnalysisDataCacheDuration = TimeSpan.FromMinutes(5);
 
     private readonly Lazy<IReadOnlyDictionary<int, ImmutableArray<SkillRequirement>>> _skillRequirements;
 
@@ -50,14 +51,9 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         bool simulateNextPhase = false,
         CancellationToken cancellationToken = default)
     {
-        // 1. Fetch blueprints and skills in parallel
-        var blueprintsTask = _characterClient.GetCharacterBlueprintsAsync(characterId, cancellationToken);
-        var skillsTask = _characterClient.GetCharacterSkillsAsync(characterId, cancellationToken);
-        await Task.WhenAll(blueprintsTask, skillsTask);
+        var data = await GetOrFetchAnalysisDataAsync(characterId, configuration, cancellationToken);
 
-        var blueprints = blueprintsTask.Result;
-        var skills = skillsTask.Result;
-
+        var blueprints = data.Blueprints;
         var portfolioSizeWarning = blueprints.Length > 300;
 
         if (blueprints.IsEmpty)
@@ -65,52 +61,13 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             return CreateEmptyAnalysis(portfolioSizeWarning);
         }
 
-        // 2. Build skill lookup
-        var skillLookup = skills.ToDictionary(s => s.SkillId, s => s.TrainedLevel);
-
-        // 3. Filter blueprints by skill requirements and resolve activities
-        var eligibleBlueprints = new List<(CharacterBlueprint Blueprint, BlueprintActivity Activity)>();
-        var errorResults = new List<BlueprintRankingEntry>();
-        var allTypeIds = new HashSet<int>();
-
-        foreach (var bp in blueprints)
-        {
-            var activity = _blueprintData.GetBlueprintActivity(bp.TypeId);
-            if (activity == null)
-            {
-                errorResults.Add(CreateErrorEntry(bp, "No manufacturing data found"));
-                continue;
-            }
-
-            // Skill gating
-            if (!MeetsSkillRequirements(bp.TypeId, skillLookup))
-                continue;
-
-            eligibleBlueprints.Add((bp, activity));
-            allTypeIds.Add(activity.ProducedTypeId);
-            foreach (var mat in activity.Materials)
-                allTypeIds.Add(mat.TypeId);
-        }
-
-        // 4. Fetch market snapshots for all unique types in parallel
-        var marketSnapshots = await FetchMarketSnapshotsAsync(
-            allTypeIds, configuration.ProcurementRegionId, cancellationToken);
-
-        // Also fetch selling hub snapshots if different region
-        Dictionary<int, MarketSnapshot>? sellingSnapshots = null;
-        if (configuration.SellingHubRegionId != configuration.ProcurementRegionId)
-        {
-            sellingSnapshots = await FetchMarketSnapshotsAsync(
-                allTypeIds, configuration.SellingHubRegionId, cancellationToken);
-        }
-
-        // 5. Fetch system cost index and adjusted prices (for EIV calculation)
-        var costIndex = await GetManufacturingCostIndexAsync(
-            configuration.ManufacturingSystemId, cancellationToken);
-        var adjustedPrices = await GetAdjustedPricesAsync(cancellationToken);
-
-        // 6. Resolve type names
-        var typeNames = await ResolveTypeNamesAsync(allTypeIds, cancellationToken);
+        var eligibleBlueprints = data.EligibleBlueprints;
+        var errorResults = new List<BlueprintRankingEntry>(data.ErrorResults);
+        var marketSnapshots = data.MarketSnapshots;
+        var sellingSnapshots = data.SellingSnapshots;
+        var costIndex = data.CostIndex;
+        var adjustedPrices = data.AdjustedPrices;
+        var typeNames = data.TypeNames;
 
         // 7. Calculate rankings
         var rankings = new List<BlueprintRankingEntry>();
@@ -237,6 +194,101 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             ErrorCount: errorCount,
             PortfolioSizeWarning: portfolioSizeWarning,
             FetchedAt: DateTimeOffset.UtcNow);
+    }
+
+    private async Task<CachedAnalysisData> GetOrFetchAnalysisDataAsync(
+        int characterId,
+        PortfolioConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        // Cache key based only on parameters that determine WHICH data to fetch,
+        // not how calculations are performed. This means changes to fees, taxes,
+        // buy/sell toggles, what-if ME/TE, slots, and income goals all reuse cached data.
+        var dataCacheKey = $"portfolio:data:{characterId}:{configuration.ProcurementRegionId}:{configuration.SellingHubRegionId}:{configuration.ManufacturingSystemId}";
+
+        if (_cache.TryGetValue(dataCacheKey, out CachedAnalysisData? cached) && cached != null)
+        {
+            _logger.LogInformation("Portfolio analysis using cached data for character {CharacterId}", characterId);
+            return cached;
+        }
+
+        _logger.LogInformation("Portfolio analysis fetching fresh data for character {CharacterId}", characterId);
+
+        // 1. Fetch blueprints and skills in parallel
+        var blueprintsTask = _characterClient.GetCharacterBlueprintsAsync(characterId, cancellationToken);
+        var skillsTask = _characterClient.GetCharacterSkillsAsync(characterId, cancellationToken);
+        await Task.WhenAll(blueprintsTask, skillsTask);
+
+        var blueprints = blueprintsTask.Result;
+        var skills = skillsTask.Result;
+
+        if (blueprints.IsEmpty)
+        {
+            var emptyData = new CachedAnalysisData(
+                blueprints, skills,
+                new List<(CharacterBlueprint, BlueprintActivity)>(),
+                new List<BlueprintRankingEntry>(),
+                new Dictionary<int, MarketSnapshot>(),
+                null, 0.0,
+                new Dictionary<int, decimal>(),
+                new Dictionary<int, string>());
+            _cache.Set(dataCacheKey, emptyData, AnalysisDataCacheDuration);
+            return emptyData;
+        }
+
+        // 2. Build skill lookup
+        var skillLookup = skills.ToDictionary(s => s.SkillId, s => s.TrainedLevel);
+
+        // 3. Filter blueprints by skill requirements and resolve activities
+        var eligibleBlueprints = new List<(CharacterBlueprint Blueprint, BlueprintActivity Activity)>();
+        var errorResults = new List<BlueprintRankingEntry>();
+        var allTypeIds = new HashSet<int>();
+
+        foreach (var bp in blueprints)
+        {
+            var activity = _blueprintData.GetBlueprintActivity(bp.TypeId);
+            if (activity == null)
+            {
+                errorResults.Add(CreateErrorEntry(bp, "No manufacturing data found"));
+                continue;
+            }
+
+            // Skill gating
+            if (!MeetsSkillRequirements(bp.TypeId, skillLookup))
+                continue;
+
+            eligibleBlueprints.Add((bp, activity));
+            allTypeIds.Add(activity.ProducedTypeId);
+            foreach (var mat in activity.Materials)
+                allTypeIds.Add(mat.TypeId);
+        }
+
+        // 4. Fetch market snapshots for all unique types in parallel
+        var marketSnapshots = await FetchMarketSnapshotsAsync(
+            allTypeIds, configuration.ProcurementRegionId, cancellationToken);
+
+        // Also fetch selling hub snapshots if different region
+        Dictionary<int, MarketSnapshot>? sellingSnapshots = null;
+        if (configuration.SellingHubRegionId != configuration.ProcurementRegionId)
+        {
+            sellingSnapshots = await FetchMarketSnapshotsAsync(
+                allTypeIds, configuration.SellingHubRegionId, cancellationToken);
+        }
+
+        // 5. Fetch system cost index and adjusted prices (for EIV calculation)
+        var costIndex = await GetManufacturingCostIndexAsync(
+            configuration.ManufacturingSystemId, cancellationToken);
+        var adjustedPrices = await GetAdjustedPricesAsync(cancellationToken);
+
+        // 6. Resolve type names
+        var typeNames = await ResolveTypeNamesAsync(allTypeIds, cancellationToken);
+
+        var data = new CachedAnalysisData(
+            blueprints, skills, eligibleBlueprints, errorResults,
+            marketSnapshots, sellingSnapshots, costIndex, adjustedPrices, typeNames);
+
+        _cache.Set(dataCacheKey, data, AnalysisDataCacheDuration);
+        return data;
     }
 
     private BlueprintRankingEntry CalculateRankingEntry(
@@ -595,7 +647,9 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
         var productSnapshots = sellingSnapshots ?? procurementSnapshots;
         var productSnapshot = productSnapshots.GetValueOrDefault(activity.ProducedTypeId);
-        var unitPrice = productSnapshot?.LowestSellPrice ?? 0m;
+        var unitPrice = config.UseBuyOrdersForSelling
+            ? (productSnapshot?.HighestBuyPrice ?? 0m)
+            : (productSnapshot?.LowestSellPrice ?? 0m);
         var productRevenue = unitPrice * activity.ProducedQuantity;
         var hasMarketData = unitPrice > 0;
         var averageDailyVolume = productSnapshot?.AverageDailyVolume ?? 0.0;
@@ -875,4 +929,21 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
     }
 
     private record SkillRequirement(int SkillId, int Level);
+
+    /// <summary>
+    /// Cached bundle of all fetched ESI data needed for analysis.
+    /// Keyed by character + regions + manufacturing system so that
+    /// changes to calculation-only parameters (fees, taxes, toggles)
+    /// reuse this data without any API calls.
+    /// </summary>
+    private record CachedAnalysisData(
+        ImmutableArray<CharacterBlueprint> Blueprints,
+        ImmutableArray<CharacterSkill> Skills,
+        List<(CharacterBlueprint Blueprint, BlueprintActivity Activity)> EligibleBlueprints,
+        List<BlueprintRankingEntry> ErrorResults,
+        Dictionary<int, MarketSnapshot> MarketSnapshots,
+        Dictionary<int, MarketSnapshot>? SellingSnapshots,
+        double CostIndex,
+        Dictionary<int, decimal> AdjustedPrices,
+        Dictionary<int, string> TypeNames);
 }

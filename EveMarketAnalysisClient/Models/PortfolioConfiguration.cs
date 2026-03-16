@@ -16,4 +16,5 @@ public record PortfolioConfiguration(
     int ManufacturingSlots = 11,
     int? WhatIfME = null,
     int? WhatIfTE = null,
-    bool UseBuyOrdersForMaterials = true);
+    bool UseBuyOrdersForMaterials = true,
+    bool UseBuyOrdersForSelling = false);
