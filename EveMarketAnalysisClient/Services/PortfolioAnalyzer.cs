@@ -175,7 +175,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         // 11. Generate BPO recommendations
         var bpoRecommendations = await GenerateBpoRecommendationsAsync(
             blueprints, currentPhaseNumber, phases, configuration,
-            marketSnapshots, typeNames, costIndex, adjustedPrices, cancellationToken);
+            marketSnapshots, sellingSnapshots, typeNames, costIndex, adjustedPrices, cancellationToken);
 
         // 12. Re-evaluate phase statuses with exhaustion check using BPO results
         var phaseStatuses = EvaluatePhaseStatuses(sortedRankings, phases, configuration,
@@ -211,7 +211,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
             bpoRecommendations = await GenerateBpoRecommendationsAsync(
                 blueprints, currentPhaseNumber, phases, configuration,
-                marketSnapshots, typeNames, costIndex, adjustedPrices, cancellationToken);
+                marketSnapshots, sellingSnapshots, typeNames, costIndex, adjustedPrices, cancellationToken);
         }
 
         if (simulateNextPhase && currentPhaseNumber < 5)
@@ -364,6 +364,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
         ImmutableArray<PhaseDefinition> phases,
         PortfolioConfiguration config,
         Dictionary<int, MarketSnapshot> marketSnapshots,
+        Dictionary<int, MarketSnapshot>? sellingSnapshots,
         Dictionary<int, string> typeNames,
         double costIndex,
         Dictionary<int, decimal> adjustedPrices,
@@ -383,22 +384,50 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
             return ImmutableArray<BpoPurchaseRecommendation>.Empty;
 
         // Fetch market data for unowned candidates' materials and products
-        var additionalTypeIds = new HashSet<int>();
+        var producedTypeIds = new HashSet<int>();
+        var materialTypeIds = new HashSet<int>();
         foreach (var bpTypeId in unownedTypeIds)
         {
             var act = _blueprintData.GetBlueprintActivity(bpTypeId);
             if (act == null) continue;
-            additionalTypeIds.Add(act.ProducedTypeId);
+            producedTypeIds.Add(act.ProducedTypeId);
             foreach (var mat in act.Materials)
-                additionalTypeIds.Add(mat.TypeId);
+                materialTypeIds.Add(mat.TypeId);
         }
-        var missingTypeIds = new HashSet<int>(additionalTypeIds.Where(id => !marketSnapshots.ContainsKey(id)));
-        if (missingTypeIds.Count > 0)
+
+        // Fetch procurement-region data for materials
+        var missingMaterialIds = new HashSet<int>(materialTypeIds.Where(id => !marketSnapshots.ContainsKey(id)));
+        if (missingMaterialIds.Count > 0)
         {
             var additionalSnapshots = await FetchMarketSnapshotsAsync(
-                missingTypeIds, config.ProcurementRegionId, cancellationToken);
+                missingMaterialIds, config.ProcurementRegionId, cancellationToken);
             foreach (var (id, snapshot) in additionalSnapshots)
                 marketSnapshots.TryAdd(id, snapshot);
+        }
+
+        // Fetch selling-region data for products (when regions differ)
+        if (sellingSnapshots != null)
+        {
+            var missingProductIds = new HashSet<int>(producedTypeIds.Where(id => !sellingSnapshots.ContainsKey(id)));
+            if (missingProductIds.Count > 0)
+            {
+                var additionalSellingSnapshots = await FetchMarketSnapshotsAsync(
+                    missingProductIds, config.SellingHubRegionId, cancellationToken);
+                foreach (var (id, snapshot) in additionalSellingSnapshots)
+                    sellingSnapshots.TryAdd(id, snapshot);
+            }
+        }
+        else
+        {
+            // Same region for procurement and selling — ensure products are in procurement snapshots
+            var missingProductIds = new HashSet<int>(producedTypeIds.Where(id => !marketSnapshots.ContainsKey(id)));
+            if (missingProductIds.Count > 0)
+            {
+                var additionalSnapshots = await FetchMarketSnapshotsAsync(
+                    missingProductIds, config.ProcurementRegionId, cancellationToken);
+                foreach (var (id, snapshot) in additionalSnapshots)
+                    marketSnapshots.TryAdd(id, snapshot);
+            }
         }
 
         var recommendations = new List<BpoPurchaseRecommendation>();
@@ -412,7 +441,7 @@ public class PortfolioAnalyzer : IPortfolioAnalyzer
 
             // Calculate projected ISK/hr at ME10/TE20
             var projectedCalc = CalculateDetailed(
-                activity, 10, 20, config, marketSnapshots, costIndex, adjustedPrices: adjustedPrices);
+                activity, 10, 20, config, marketSnapshots, costIndex, sellingSnapshots, adjustedPrices);
             var projectedIskPerHour = CalculateIskPerHour(projectedCalc);
 
             // Fetch region-wide BPO market data (includes NPC detection via order duration)
